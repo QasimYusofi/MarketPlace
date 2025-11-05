@@ -1,71 +1,80 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from .models import Category, Product, Order, OrderItem
-
-
-class CategorySerializer(serializers.ModelSerializer):
-    """Serializer for Category model"""
-    class Meta:
-        model = Category
-        fields = ['id', 'name', 'description', 'slug', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
-
-
-class ProductSerializer(serializers.ModelSerializer):
-    """Serializer for Product model"""
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    seller_username = serializers.CharField(source='seller.username', read_only=True)
-
-    class Meta:
-        model = Product
-        fields = [
-            'id', 'name', 'description', 'price', 'category', 
-            'category_name', 'stock', 'image_url', 'is_active',
-            'seller', 'seller_username', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'seller']
-
-
-class ProductListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for product listings"""
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    
-    class Meta:
-        model = Product
-        fields = [
-            'id', 'name', 'price', 'category', 'category_name',
-            'stock', 'image_url', 'is_active', 'created_at'
-        ]
-
-
-class OrderItemSerializer(serializers.ModelSerializer):
-    """Serializer for OrderItem model"""
-    product_name = serializers.CharField(source='product.name', read_only=True)
-    
-    class Meta:
-        model = OrderItem
-        fields = ['id', 'order', 'product', 'product_name', 'quantity', 'price']
-        read_only_fields = ['id', 'price']
-
-
-class OrderSerializer(serializers.ModelSerializer):
-    """Serializer for Order model"""
-    items = OrderItemSerializer(many=True, read_only=True)
-    user_username = serializers.CharField(source='user.username', read_only=True)
-    
-    class Meta:
-        model = Order
-        fields = [
-            'id', 'user', 'user_username', 'status', 'total_amount',
-            'items', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'user']
+from django.utils import timezone
+from .models import User
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """Serializer for User model"""
+    # Force ObjectId to string for DRF representation
+    id = serializers.SerializerMethodField(read_only=True)
+    full_name = serializers.ReadOnlyField()
+    has_profile_image = serializers.SerializerMethodField()
+    profile_image_info = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name']
-        read_only_fields = ['id']
+        fields = [
+            'id',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'post_code',
+            'birthday',
+            'city',
+            'is_verified',
+            'role',
+            'status',
+            'last_login',
+            'created_at',
+            'updated_at',
+            'full_name',
+            'has_profile_image',
+            'profile_image_info',
+        ]
+        read_only_fields = ['id', 'is_verified', 'last_login', 'created_at', 'updated_at', 'has_profile_image', 'profile_image_info', 'full_name']
+
+    def get_id(self, obj):
+        return str(obj.id) if obj.id is not None else None
+    def get_has_profile_image(self, obj):
+        return obj.has_profile_image()
+
+    def get_profile_image_info(self, obj):
+        info = obj.get_profile_image_info()
+        return info
+
+    def validate_birthday(self, value):
+        if value and value >= timezone.now().date():
+            raise serializers.ValidationError("تاریخ تولد باید در گذشته باشد")
+        return value
+
+    def create(self, validated_data):
+        password = self.initial_data.get('password')
+        user = User(
+            first_name=validated_data.get('first_name'),
+            last_name=validated_data.get('last_name'),
+            email=validated_data.get('email'),
+            phone=validated_data.get('phone'),
+            post_code=validated_data.get('post_code'),
+            birthday=validated_data.get('birthday'),
+            city=validated_data.get('city'),
+            role=validated_data.get('role', User.Roles.CUSTOMER),
+            status=validated_data.get('status', User.Status.ACTIVE),
+        )
+        if password:
+            user.set_password(password)
+        else:
+            raise serializers.ValidationError({"password": "رمز عبور الزامی است"})
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        for field in ['first_name', 'last_name', 'email', 'phone', 'post_code', 'birthday', 'city', 'role', 'status']:
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
+
+        password = self.initial_data.get('password')
+        if password:
+            instance.set_password(password)
+        instance.save()
+        return instance
 
