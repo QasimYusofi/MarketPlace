@@ -2,14 +2,14 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.http import HttpResponse
-from .models import User
-from .serializers import UserSerializer
+from .models import Customer
+from .serializers import CustomerSerializer
 from .permissions import IsAdminRole, IsSelfOrAdmin
 
 
-class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all().order_by('-created_at')
-    serializer_class = UserSerializer
+class CustomerViewSet(viewsets.ModelViewSet):
+    queryset = Customer.objects.all().order_by('-created_at')
+    serializer_class = CustomerSerializer
 
     def get_permissions(self):
         if self.action in ['create']:

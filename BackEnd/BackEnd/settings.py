@@ -136,7 +136,7 @@ MIGRATION_MODULES = {
 }
 
 # Custom user model
-AUTH_USER_MODEL = 'marketplace.User'
+AUTH_USER_MODEL = 'marketplace.Customer'
 
 # CORS Configuration for Next.js frontend
 CORS_ALLOWED_ORIGINS = [

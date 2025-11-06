@@ -1,28 +1,26 @@
-# Django MongoDB Backend - Project Template
+Post sample to create user:
+- POST  :8000/api/users/
+- body
+  { 
+    "first_name": "Qasim", 
+    "last_name": "Yusofi", 
+    "phone": "09926067529", 
+    "password": "StrongPass@123", 
+    "email": "qasim@gmail.com", 
+    "post_code": "1234567890", "
+    birthday": "2001-04-25", 
+    "city": "Tehran" 
+  }
 
-This is a Django project starter template for the Django MongoDB Backend.
-In order to use it with your version of Django: 
 
-- Find your Django version. To do so from the command line, make sure you
-  have Django installed and run:
+Get to auth fetch data
+- POST:8000/api/auth/token/
+- body
+  {
+    "phone":"09926067529" ,"password"="StrongPass@123"
+  } 
 
-```bash
-django-admin --version
->> 5.2
-```
-
-## Create the Django project
-
-From your shell, run the following command to create a new Django project
-replacing the `{{ project_name }}` and `{{ version }}` sections. 
-
-```bash
-django-admin startproject {{ project_name }} --template https://github.com/mongodb-labs/django-mongodb-project/archive/refs/heads/{{ version }}.x.zip
-```
-
-For a project named `5_2_example` that runs on `django==5.2.*`
-the command would look like this:
-
-```bash
-django-admin startproject 5_2_example --template https://github.com/mongodb-labs/django-mongodb-project/archive/refs/heads/5.2.x.zip
-```
+then get the access token
+- GET:8000/api/users/690ce0b2345b9c083b0b0aa3 (id)
+- past access token in auth bearer token
+  eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzYyNDU2ODMyLCJpYXQiOjE3NjI0NTMyMzIsImp0aSI6IjIzN2ZiNWRkMThhYTQ0ZDE5ZDk1Y2Q0ZDJiY2QyMzMzIiwidXNlcl9pZCI6IjY5MGNlMGIyMzQ1YjljMDgzYjBiMGFhMyJ9.31dqLjcBi37j6q74E3e1z_FJFYiKRvR26h1ay0IWYGw

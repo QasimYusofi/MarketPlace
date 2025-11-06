@@ -1,9 +1,9 @@
 from rest_framework import serializers
 from django.utils import timezone
-from .models import User
+from .models import Customer
 
 
-class UserSerializer(serializers.ModelSerializer):
+class CustomerSerializer(serializers.ModelSerializer):
     # Force ObjectId to string for DRF representation
     id = serializers.SerializerMethodField(read_only=True)
     full_name = serializers.ReadOnlyField()
@@ -11,7 +11,7 @@ class UserSerializer(serializers.ModelSerializer):
     profile_image_info = serializers.SerializerMethodField()
 
     class Meta:
-        model = User
+        model = Customer
         fields = [
             'id',
             'first_name',
@@ -22,7 +22,6 @@ class UserSerializer(serializers.ModelSerializer):
             'birthday',
             'city',
             'is_verified',
-            'role',
             'status',
             'last_login',
             'created_at',
@@ -35,6 +34,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_id(self, obj):
         return str(obj.id) if obj.id is not None else None
+
     def get_has_profile_image(self, obj):
         return obj.has_profile_image()
 
@@ -49,7 +49,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = self.initial_data.get('password')
-        user = User(
+        customer = Customer(
             first_name=validated_data.get('first_name'),
             last_name=validated_data.get('last_name'),
             email=validated_data.get('email'),
@@ -57,18 +57,17 @@ class UserSerializer(serializers.ModelSerializer):
             post_code=validated_data.get('post_code'),
             birthday=validated_data.get('birthday'),
             city=validated_data.get('city'),
-            role=validated_data.get('role', User.Roles.CUSTOMER),
-            status=validated_data.get('status', User.Status.ACTIVE),
+            status=validated_data.get('status', Customer.Status.ACTIVE),
         )
         if password:
-            user.set_password(password)
+            customer.set_password(password)
         else:
             raise serializers.ValidationError({"password": "رمز عبور الزامی است"})
-        user.save()
-        return user
+        customer.save()
+        return customer
 
     def update(self, instance, validated_data):
-        for field in ['first_name', 'last_name', 'email', 'phone', 'post_code', 'birthday', 'city', 'role', 'status']:
+        for field in ['first_name', 'last_name', 'email', 'phone', 'post_code', 'birthday', 'city', 'status']:
             if field in validated_data:
                 setattr(instance, field, validated_data[field])
 
@@ -77,4 +76,8 @@ class UserSerializer(serializers.ModelSerializer):
             instance.set_password(password)
         instance.save()
         return instance
+
+
+# For backward compatibility
+UserSerializer = CustomerSerializer
 

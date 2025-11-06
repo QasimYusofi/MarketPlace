@@ -43,7 +43,11 @@ class UserManager(BaseUserManager):
         return self._create_user(phone, password, **extra_fields)
 
 
-class User(AbstractBaseUser, PermissionsMixin):
+class BaseUser(AbstractBaseUser, PermissionsMixin):
+    """
+    Abstract base user model with common fields for all user types.
+    Customer, StoreOwner, and Admin will inherit from this.
+    """
     id = ObjectIdAutoField(primary_key=True)
 
     first_name = models.CharField(
@@ -85,12 +89,6 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     is_verified = models.BooleanField(default=False)
 
-    class Roles(models.TextChoices):
-        CUSTOMER = "customer", "customer"
-        ADMIN = "admin", "admin"
-
-    role = models.CharField(max_length=20, choices=Roles.choices, default=Roles.CUSTOMER)
-
     class Status(models.TextChoices):
         ACTIVE = "active", "active"
         INACTIVE = "inactive", "inactive"
@@ -105,20 +103,18 @@ class User(AbstractBaseUser, PermissionsMixin):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    objects = UserManager()
-
     USERNAME_FIELD = "phone"
     REQUIRED_FIELDS = []
 
     class Meta:
+        abstract = True
         indexes = [
             models.Index(fields=["phone"]),
             models.Index(fields=["email"]),
             models.Index(fields=["status"]),
-            models.Index(fields=["role"]),
         ]
-        verbose_name = "User"
-        verbose_name_plural = "Users"
+        verbose_name = "Base User"
+        verbose_name_plural = "Base Users"
 
     @property
     def full_name(self):
@@ -191,3 +187,24 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.full_name or self.phone
+
+
+class Customer(BaseUser):
+    """
+    Customer user model - inherits all common fields from BaseUser.
+    No role or is_superuser fields (those will be in Admin/StoreOwner models).
+    """
+    objects = UserManager()
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["phone"]),
+            models.Index(fields=["email"]),
+            models.Index(fields=["status"]),
+        ]
+        verbose_name = "Customer"
+        verbose_name_plural = "Customers"
+
+
+# For backward compatibility and easier imports
+User = Customer
