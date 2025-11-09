@@ -5,7 +5,10 @@ const HomePage = () => {
   return (
     <div className="h-screen w-screen flex items-center justify-center">
       <div className="absolute top-0 left-1/2 h-16 w-32 z-0 font-bold rounded-3xl flex justify-center items-center m-2 bg-amber-100">
-        <Link href="/auth/users/" className="absolute text-blue-600 underline">
+        <Link
+          href="/auth/user-login/"
+          className="absolute text-blue-600 underline"
+        >
           Login Page
         </Link>
       </div>

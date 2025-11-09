@@ -52,3 +52,8 @@ Ok to proceed? (y)
     √ Would you like to use Turbopack? (recommended) ... No / Yes
     √ Would you like to customize the import alias (`@/*` by default)? ... No / Yes
     √ What import alias would you like configured? ... @/*
+
+## Install modules
+
+    - npm install react-icons react-hot-toast
+    - npm install axios react-hot-toast
