@@ -1,31 +1,35 @@
-// app/user-login/page.js
+// app/user-register/page.js
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast, Toaster } from "react-hot-toast";
 import axios from "axios";
 import {
+  FaUser,
   FaPhone,
   FaLock,
   FaEye,
   FaEyeSlash,
-  FaUser,
-  FaGoogle,
-  FaTwitter,
-  FaSignInAlt,
   FaUserPlus,
+  FaSignInAlt,
+  FaIdCard,
 } from "react-icons/fa";
 
-export default function Login() {
+export default function CustomerRegister() {
   const router = useRouter();
   const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
     phone: "",
     password: "",
+    confirmPassword: "",
   });
 
+  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -33,15 +37,89 @@ export default function Login() {
       ...prev,
       [name]: value,
     }));
+
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors((prev) => ({
+        ...prev,
+        [name]: "",
+      }));
+    }
+  };
+
+  const validateField = (fieldName, value) => {
+    let fieldErrors = "";
+
+    switch (fieldName) {
+      case "firstName":
+        if (!value.trim()) fieldErrors = "نام الزامی است";
+        else if (value.trim().length < 2)
+          fieldErrors = "نام باید حداقل ۲ حرف باشد";
+        break;
+      case "lastName":
+        if (!value.trim()) fieldErrors = "نام خانوادگی الزامی است";
+        else if (value.trim().length < 2)
+          fieldErrors = "نام خانوادگی باید حداقل ۲ حرف باشد";
+        break;
+      case "phone":
+        if (!value.trim()) fieldErrors = "شماره تماس الزامی است";
+        else if (!/^09\d{9}$/.test(value.replace(/\s/g, "")))
+          fieldErrors = "شماره تماس باید با 09 شروع شود و 11 رقم باشد";
+        break;
+      case "password":
+        if (!value) fieldErrors = "رمز عبور الزامی است";
+        else if (value.length < 6)
+          fieldErrors = "رمز عبور باید حداقل ۶ حرف باشد";
+        break;
+      case "confirmPassword":
+        if (!value) fieldErrors = "تکرار رمز عبور الزامی است";
+        else if (value !== formData.password)
+          fieldErrors = "رمز عبور و تکرار آن مطابقت ندارند";
+        break;
+      default:
+        break;
+    }
+
+    return fieldErrors;
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    const error = validateField(name, value);
+    setErrors((prev) => ({
+      ...prev,
+      [name]: error,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Basic validation
-    if (!formData.phone || !formData.password) {
-      toast.error("لطفا شماره تماس و رمز عبور را وارد کنید", {
+    // Validate only required fields
+    const requiredFields = [
+      "firstName",
+      "lastName",
+      "phone",
+      "password",
+      "confirmPassword",
+    ];
+    const newErrors = {};
+
+    requiredFields.forEach((key) => {
+      const error = validateField(key, formData[key]);
+      if (error) {
+        newErrors[key] = error;
+      }
+    });
+
+    setErrors(newErrors);
+
+    // Check if there are any errors in required fields
+    const hasErrors = Object.values(newErrors).some((error) => error !== "");
+
+    if (hasErrors) {
+      toast.error("لطفا فیلدهای الزامی را تکمیل کنید", {
         duration: 4000,
         position: "top-center",
         style: {
@@ -52,89 +130,84 @@ export default function Login() {
           borderRadius: "12px",
           boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
         },
-        icon: "❌",
       });
       setIsSubmitting(false);
       return;
     }
 
-    // Validate phone format
-    const phoneRegex = /^09\d{9}$/;
-    const cleanPhone = formData.phone.replace(/\s/g, "");
-
-    if (!phoneRegex.test(cleanPhone)) {
-      toast.error("فرمت شماره تماس نامعتبر است", {
-        duration: 4000,
-        position: "top-center",
-        style: {
-          background: "#fef2f2",
-          color: "#dc2626",
-          border: "1px solid #fecaca",
-          padding: "16px",
-          borderRadius: "12px",
-          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
-        },
-        icon: "❌",
-      });
-      setIsSubmitting(false);
-      return;
-    }
+    // Prepare data for API
+    const submitData = {
+      first_name: formData.firstName,
+      last_name: formData.lastName,
+      phone: formData.phone,
+      password: formData.password,
+      email: `user${Date.now()}@example.com`, // Dummy email
+      //   password_confirmation: formData.confirmPassword,
+    };
 
     try {
-      const response = await axios.post("/api/auth/user-login", {
-        phone: cleanPhone,
-        password: formData.password,
-        rememberMe,
-      });
-
-      if (response.data.success) {
-        toast.success("ورود موفقیت آمیز! در حال انتقال...", {
-          duration: 3000,
-          position: "top-center",
-          style: {
-            background: "#f0fdf4",
-            color: "#16a34a",
-            border: "1px solid #bbf7d0",
-            padding: "16px",
-            borderRadius: "12px",
-            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
+      // API call using Axios - changed endpoint to customer registration
+      const response = await axios.post(
+        "http://127.0.0.1:8000/api/users/",
+        submitData,
+        {
+          headers: {
+            "Content-Type": "application/json",
           },
-          icon: "✅",
+          timeout: 10000,
+        }
+      );
+
+      console.log(response);
+      if (response.status === 201) {
+        toast.success(
+          "ثبت نام با موفقیت انجام شد! در حال انتقال به صفحه ورود...",
+          {
+            duration: 3000,
+            position: "top-center",
+            style: {
+              background: "#f0fdf4",
+              color: "#16a34a",
+              border: "1px solid #bbf7d0",
+              padding: "16px",
+              borderRadius: "12px",
+              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
+            },
+          }
+        );
+
+        localStorage.setItem("ID", response.data.id);
+        // Reset form
+        setFormData({
+          firstName: "",
+          lastName: "",
+          phone: "",
+          password: "",
+          confirmPassword: "",
         });
 
-        // Store token and user data
-        if (response.data.token) {
-          localStorage.setItem("token", response.data.token);
-        }
-        if (response.data.user) {
-          localStorage.setItem("user", JSON.stringify(response.data.user));
-        }
-
-        // Update last login
-        const redirectData = localStorage.getItem("redirectAfterLogin");
+        // Redirect to login page after 2 seconds
         setTimeout(() => {
-          if (redirectData) {
-            const { path } = JSON.parse(redirectData);
-            localStorage.removeItem("redirectAfterLogin");
-            router.push(path);
-          } else {
-            router.push("/");
-          }
+          router.push("/auth/user-login");
         }, 2000);
+      } else {
+        throw new Error(response.data.message || "خطا در ثبت نام");
       }
     } catch (error) {
-      let errorMessage = "شماره تماس یا رمز عبور اشتباه است";
+      console.error("Registration error:", error);
+
+      let errorMessage = "خطا در ثبت نام. لطفا مجدد تلاش کنید";
 
       if (axios.isAxiosError(error)) {
-        if (error.response?.data?.message) {
-          errorMessage = error.response.data.message;
+        if (error.response) {
+          errorMessage = error.response.data.message || "خطا در سرور";
         } else if (error.request) {
           errorMessage = "خطا در ارتباط با سرور";
         }
       }
 
       toast.error(errorMessage, {
-        duration: 4000,
+        duration: 5000,
         position: "top-center",
         style: {
           background: "#fef2f2",
@@ -144,47 +217,30 @@ export default function Login() {
           borderRadius: "12px",
           boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
         },
-        icon: "❌",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleRegisterRedirect = () => {
-    router.push("/auth/user-register");
+  const handleLoginRedirect = () => {
+    router.push("/auth/user-login");
   };
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
 
-  const handleForgotPassword = () => {
-    router.push("/forgot-password");
-  };
-
-  const handleSocialLogin = (provider) => {
-    toast.custom(
-      (t) => (
-        <div
-          className={`${
-            t.visible ? "animate-enter" : "animate-leave"
-          } bg-blue-400 text-white px-4 py-2 rounded-lg shadow-lg`}
-        >
-          ورود با {provider} در حال توسعه است...
-        </div>
-      ),
-      {
-        duration: 3000,
-        position: "top-center",
-      }
-    );
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
   };
 
   return (
     <>
+      {/* Toast Container */}
       <Toaster
         toastOptions={{
+          className: "",
           style: {
             fontFamily: "var(--font-vazirmatn), sans-serif",
             direction: "rtl",
@@ -192,133 +248,238 @@ export default function Login() {
         }}
       />
 
-      <div
-        className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-vazirmatn"
-        dir="rtl"
-      >
-        <div className="max-w-md w-full space-y-8">
-          {/* Header Section */}
-          <div className="text-center">
-            <div className="flex justify-center">
-              <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                <FaUser className="w-8 h-8" />
-              </div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="flex justify-center">
+            <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+              <FaUserPlus className="w-8 h-8" />
             </div>
-            <h2 className="mt-6 text-3xl font-bold text-gray-900">
-              ورود به حساب کاربری
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              خوش آمدید! لطفا اطلاعات حساب خود را وارد کنید
-            </p>
           </div>
+          <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
+            ثبت نام مشتری
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            اطلاعات شخصی خود را وارد کنید
+          </p>
+        </div>
 
-          {/* Login Form */}
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-xl">
           <div className="bg-white py-8 px-6 shadow-xl sm:rounded-2xl sm:px-10 border border-gray-100">
             <form className="space-y-6" onSubmit={handleSubmit}>
-              {/* Phone Field */}
-              <div>
-                <label
-                  htmlFor="phone"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  شماره تماس
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <FaPhone className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    autoComplete="tel"
-                    required
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className="appearance-none block w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-right"
-                    placeholder="0912xxxxxxx"
-                    dir="ltr"
-                    maxLength={11}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1 text-right">
-                  شماره تماس باید با 09 شروع شود و 11 رقم باشد
-                </p>
-              </div>
+              {/* Personal Information Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <FaUser className="ml-2" />
+                  اطلاعات شخصی
+                </h3>
 
-              {/* Password Field */}
-              <div>
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  رمز عبور
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <FaLock className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    required
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="appearance-none block w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-right"
-                    placeholder="رمز عبور خود را وارد کنید"
-                    dir="ltr"
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors duration-200"
-                    onClick={togglePasswordVisibility}
-                  >
-                    {showPassword ? (
-                      <FaEyeSlash className="h-5 w-5" />
-                    ) : (
-                      <FaEye className="h-5 w-5" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      htmlFor="firstName"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      نام*
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <FaUser className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        id="firstName"
+                        name="firstName"
+                        type="text"
+                        autoComplete="given-name"
+                        value={formData.firstName}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        className={`appearance-none block w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-right ${
+                          errors.firstName
+                            ? "border-red-500 bg-red-50"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                        placeholder="نام"
+                        dir="rtl"
+                      />
+                    </div>
+                    {errors.firstName && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                        {errors.firstName}
+                      </p>
                     )}
-                  </button>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="lastName"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      نام خانوادگی*
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <FaIdCard className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        id="lastName"
+                        name="lastName"
+                        type="text"
+                        autoComplete="family-name"
+                        value={formData.lastName}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        className={`appearance-none block w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-right ${
+                          errors.lastName
+                            ? "border-red-500 bg-red-50"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                        placeholder="نام خانوادگی"
+                        dir="rtl"
+                      />
+                    </div>
+                    {errors.lastName && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                        {errors.lastName}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
-                {/* Password Actions */}
-                <div className="flex justify-between items-center mt-2">
-                  <button
-                    type="button"
-                    onClick={togglePasswordVisibility}
-                    className="text-xs text-gray-500 hover:text-blue-600 transition-colors duration-200 flex items-center"
+                <div>
+                  <label
+                    htmlFor="phone"
+                    className="block text-sm font-medium text-gray-700 mb-2"
                   >
-                    {showPassword ? "پنهان کردن رمز عبور" : "نمایش رمز عبور"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    className="text-xs text-blue-600 hover:text-blue-500 transition-colors duration-200"
-                  >
-                    رمز عبور خود را فراموش کرده اید؟
-                  </button>
+                    شماره تماس*
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                      <FaPhone className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      autoComplete="tel"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      className={`appearance-none block w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-right ${
+                        errors.phone
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300 hover:border-gray-400"
+                      }`}
+                      placeholder="0912xxxxxxx"
+                      dir="ltr"
+                    />
+                  </div>
+                  {errors.phone && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                      {errors.phone}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* Remember Me & Options */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <input
-                    id="remember-me"
-                    name="remember-me"
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label
-                    htmlFor="remember-me"
-                    className="mr-2 block text-sm text-gray-900"
-                  >
-                    مرا به خاطر بسپار
-                  </label>
+              {/* Password Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
+                  <FaLock className="ml-2" />
+                  اطلاعات امنیتی
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      htmlFor="password"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      رمز عبور*
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <FaLock className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        id="password"
+                        name="password"
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        className={`appearance-none block w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-right ${
+                          errors.password
+                            ? "border-red-500 bg-red-50"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                        placeholder="حداقل ۶ کاراکتر"
+                        dir="ltr"
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                        onClick={togglePasswordVisibility}
+                      >
+                        {showPassword ? (
+                          <FaEyeSlash className="h-5 w-5" />
+                        ) : (
+                          <FaEye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+                    {errors.password && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                        {errors.password}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="confirmPassword"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      تکرار رمز عبور*
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <FaLock className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        className={`appearance-none block w-full pl-10 pr-12 py-3 border rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-right ${
+                          errors.confirmPassword
+                            ? "border-red-500 bg-red-50"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                        placeholder="تکرار رمز عبور"
+                        dir="ltr"
+                      />
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                        onClick={toggleConfirmPasswordVisibility}
+                      >
+                        {showConfirmPassword ? (
+                          <FaEyeSlash className="h-5 w-5" />
+                        ) : (
+                          <FaEye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+                    {errors.confirmPassword && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                        {errors.confirmPassword}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -336,82 +497,41 @@ export default function Login() {
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white ml-2"></div>
-                      در حال ورود...
+                      در حال ثبت نام...
                     </>
                   ) : (
                     <>
-                      <FaSignInAlt className="ml-2" />
-                      ورود به حساب کاربری
+                      <FaUserPlus className="ml-2" />
+                      ثبت نام مشتری
                     </>
                   )}
                 </button>
               </div>
-
-              {/* Register Link */}
-              <div className="text-center pt-4 border-t border-gray-200">
-                <p className="text-sm text-gray-600 flex flex-col justify-center items-center m-auto gap-2">
-                  حساب کاربری ندارید؟{" "}
-                  <button
-                    type="button"
-                    onClick={handleRegisterRedirect}
-                    className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200 cursor-pointer inline-flex items-center border-2 border-blue-100 hover:border-blue-400 py-3 px-12 rounded-2xl"
-                  >
-                    <FaUserPlus className="ml-2 h-5 w-5" />
-                    ایجاد حساب کاربری جدید
-                  </button>
-                </p>
-              </div>
             </form>
 
-            {/* Social Login Divider */}
-            <div className="mt-6">
+            {/* Login Redirect */}
+            <div className="mt-8">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-gray-300" />
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">
-                    یا ورود با
+                  <span className="px-4 bg-white text-gray-500">
+                    قبلاً حساب دارید؟
                   </span>
                 </div>
               </div>
 
-              {/* Social Login Buttons */}
-              <div className="mt-6 grid grid-cols-2 gap-3">
+              <div className="mt-6">
                 <button
-                  type="button"
-                  onClick={() => handleSocialLogin("Google")}
-                  className="w-full inline-flex justify-center items-center py-3 px-4 border border-gray-300 rounded-xl shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all duration-200 hover:shadow-md"
+                  onClick={handleLoginRedirect}
+                  className="w-full flex justify-center items-center py-3 px-4 border border-gray-300 rounded-xl shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 hover:shadow-md"
                 >
-                  <FaGoogle className="text-red-500 ml-2" />
-                  <span>گوگل</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSocialLogin("Twitter")}
-                  className="w-full inline-flex justify-center items-center py-3 px-4 border border-gray-300 rounded-xl shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all duration-200 hover:shadow-md"
-                >
-                  <FaTwitter className="text-blue-400 ml-2" />
-                  <span>توییتر</span>
+                  <FaSignInAlt className="ml-2" />
+                  ورود به حساب کاربری
                 </button>
               </div>
             </div>
-          </div>
-
-          {/* Footer */}
-          <div className="text-center">
-            <p className="text-xs text-gray-500">
-              با ورود به حساب، با{" "}
-              <button className="text-blue-600 hover:text-blue-500">
-                شرایط استفاده
-              </button>{" "}
-              و{" "}
-              <button className="text-blue-600 hover:text-blue-500">
-                حریم خصوصی
-              </button>{" "}
-              موافقت می‌کنید
-            </p>
           </div>
         </div>
       </div>
