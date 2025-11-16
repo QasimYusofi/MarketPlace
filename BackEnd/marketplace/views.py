@@ -10,6 +10,7 @@ from .permissions import IsAdminRole, IsSelfOrAdmin
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all().order_by('-created_at')
     serializer_class = CustomerSerializer
+    lookup_field = 'phone'
 
     def get_permissions(self):
         if self.action in ['create']:
