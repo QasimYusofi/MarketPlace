@@ -448,100 +448,107 @@ export default function Register() {
                 </h3>
 
                 <div className="space-y-4">
-                  <div>
-                    <label
-                      htmlFor="storeName"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      نام فروشگاه *
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <FaStore className="h-5 w-5 text-gray-400" />
-                      </div>
-                      <input
-                        id="storeName"
-                        name="storeName"
-                        type="text"
-                        value={formData.storeName}
-                        onChange={handleChange}
-                        onBlur={handleBlur}
-                        className={`appearance-none block w-full pl-10 pr-12 py-3 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-right ${
-                          errors.storeName
-                            ? "border-red-500 bg-red-50"
-                            : "border-gray-300 hover:border-gray-400"
-                        }`}
-                        placeholder="نام فروشگاه"
-                        dir="rtl"
-                      />
-                    </div>
-                    {errors.storeName && (
-                      <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
-                        {errors.storeName}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="storeCity"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      شهر فروشگاه *
-                    </label>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setShowCityDropdown(!showCityDropdown)}
-                        className={`appearance-none block w-full pl-10 pr-12 py-3 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-right ${
-                          errors.storeCity
-                            ? "border-red-500 bg-red-50"
-                            : "border-gray-300 hover:border-gray-400"
-                        } ${
-                          formData.storeCity ? "text-gray-900" : "text-gray-400"
-                        }`}
-                        dir="rtl"
+                  {/* Store Name and City in one row */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Store Name Field */}
+                    <div>
+                      <label
+                        htmlFor="storeName"
+                        className="block text-sm font-medium text-gray-700 mb-2"
                       >
+                        نام فروشگاه *
+                      </label>
+                      <div className="relative">
                         <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                          <FaMapMarkerAlt className="h-5 w-5 text-gray-400" />
+                          <FaStore className="h-5 w-5 text-gray-400" />
                         </div>
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <FaChevronDown
-                            className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
-                              showCityDropdown ? "rotate-180" : ""
-                            }`}
-                          />
-                        </div>
-                        {formData.storeCity || "انتخاب شهر"}
-                      </button>
-
-                      {/* Dropdown Menu */}
-                      {showCityDropdown && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                          <div className="py-1">
-                            {iranianCities.map((city) => (
-                              <button
-                                key={city}
-                                type="button"
-                                onClick={() => handleCitySelect(city)}
-                                className={`block w-full text-right px-4 py-2 text-sm hover:bg-gray-100 transition-colors duration-200 ${
-                                  formData.storeCity === city
-                                    ? "bg-indigo-50 text-indigo-700"
-                                    : "text-gray-700"
-                                }`}
-                              >
-                                {city}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                        <input
+                          id="storeName"
+                          name="storeName"
+                          type="text"
+                          value={formData.storeName}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          className={`appearance-none block w-full pl-10 pr-12 py-3 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-right ${
+                            errors.storeName
+                              ? "border-red-500 bg-red-50"
+                              : "border-gray-300 hover:border-gray-400"
+                          }`}
+                          placeholder="نام فروشگاه"
+                          dir="rtl"
+                        />
+                      </div>
+                      {errors.storeName && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          {errors.storeName}
+                        </p>
                       )}
                     </div>
-                    {errors.storeCity && (
-                      <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
-                        {errors.storeCity}
-                      </p>
-                    )}
+
+                    {/* Store City Field */}
+                    <div>
+                      <label
+                        htmlFor="storeCity"
+                        className="block text-sm font-medium text-gray-700 mb-2"
+                      >
+                        شهر فروشگاه *
+                      </label>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setShowCityDropdown(!showCityDropdown)}
+                          className={`appearance-none block w-full pl-10 pr-12 py-3 border rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-right ${
+                            errors.storeCity
+                              ? "border-red-500 bg-red-50"
+                              : "border-gray-300 hover:border-gray-400"
+                          } ${
+                            formData.storeCity
+                              ? "text-gray-900"
+                              : "text-gray-400"
+                          }`}
+                          dir="rtl"
+                        >
+                          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <FaMapMarkerAlt className="h-5 w-5 text-gray-400" />
+                          </div>
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <FaChevronDown
+                              className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
+                                showCityDropdown ? "rotate-180" : ""
+                              }`}
+                            />
+                          </div>
+                          {formData.storeCity || "انتخاب شهر"}
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {showCityDropdown && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            <div className="py-1">
+                              {iranianCities.map((city) => (
+                                <button
+                                  key={city}
+                                  type="button"
+                                  onClick={() => handleCitySelect(city)}
+                                  className={`block w-full text-right px-4 py-2 text-sm hover:bg-gray-100 transition-colors duration-200 ${
+                                    formData.storeCity === city
+                                      ? "bg-indigo-50 text-indigo-700"
+                                      : "text-gray-700"
+                                  }`}
+                                >
+                                  {city}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {errors.storeCity && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center justify-end">
+                          {errors.storeCity}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
