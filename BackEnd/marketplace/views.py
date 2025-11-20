@@ -1,16 +1,28 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse
 from .models import Customer, StoreOwner
 from .serializers import CustomerSerializer, StoreOwnerSerializer
 from .permissions import IsAdminRole, IsSelfOrAdmin
 
 
+
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all().order_by('-created_at')
     serializer_class = CustomerSerializer
     lookup_field = 'phone'
+
+    def get_object(self):
+        lookup_value = self.kwargs.get(self.lookup_field)
+        if lookup_value == 'me':
+            if not self.request.user.is_authenticated:
+                raise PermissionDenied("Authentication required")
+            if self.request.user.user_type != 'customer':
+                raise PermissionDenied("Not a customer")
+            return self.request.user
+        return super().get_object()
 
     def get_permissions(self):
         if self.action in ['create']:
@@ -63,7 +75,22 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
     serializer_class = StoreOwnerSerializer
     lookup_field = 'phone'
 
+    def get_object(self):
+        lookup_value = self.kwargs.get(self.lookup_field)
+        if lookup_value == 'me':
+            if not self.request.user.is_authenticated:
+                raise PermissionDenied("Authentication required")
+            if self.request.user.user_type != 'store_owner':
+                raise PermissionDenied("Not a store owner")
+            try:
+                return StoreOwner.objects.get(id=self.request.user.id)
+            except StoreOwner.DoesNotExist:
+                raise PermissionDenied("Store owner not found")
+        return super().get_object()
+
+
     def get_permissions(self):
+
         """Set permissions based on action"""
         if self.action in ['create']:
             # Anyone can register as a store owner
@@ -271,4 +298,3 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
             'detail': 'Store rating updated successfully',
             'store_rating': store_owner.store_rating
         })
-
