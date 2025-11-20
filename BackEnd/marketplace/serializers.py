@@ -47,6 +47,8 @@ class CustomerSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("تاریخ تولد باید در گذشته باشد")
         return value
 
+    
+
     def create(self, validated_data):
         password = self.initial_data.get('password')
         customer = Customer(
@@ -317,4 +319,3 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
         
         instance.save()
         return instance
-

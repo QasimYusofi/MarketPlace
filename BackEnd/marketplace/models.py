@@ -69,12 +69,16 @@ class BaseUser(AbstractBaseUser, PermissionsMixin):
         unique=True,
         null=True,
         blank=True,
+        error_messages={'unique': 'این ایمیل قبلاً استفاده شده است'},
     )
+
     phone = models.CharField(
         max_length=11,
         unique=True,
         validators=[phone_validator],
+        error_messages={'unique': 'این شماره تماس قبلاً استفاده شده است'},
     )
+
     # password is provided by AbstractBaseUser via hashed storage
 
     post_code = models.CharField(
@@ -237,13 +241,13 @@ class StoreOwnerManager(BaseUserManager):
 
     def _create_store_owner(self, phone, password, store_name, **extra_fields):
         if not phone:
-            raise ValueError("Phone is required")
+            raise ValueError("شماره تماس الزامی است")
         if not store_name:
-            raise ValueError("Store name is required")
+            raise ValueError("نام فروشگاه الزامی است")
         
         store_owner = self.model(phone=phone, store_name=store_name, **extra_fields)
         if not password:
-            raise ValueError("Password is required")
+            raise ValueError("امز عبور الزامی است")
         store_owner.set_password(password)
         store_owner.save(using=self._db)
         return store_owner
@@ -276,7 +280,9 @@ class StoreOwner(BaseUser):
         max_length=255,
         unique=True,
         validators=[MinLengthValidator(2)],
-        help_text="نام فروشگاه"
+        help_text="نام فروشگاه",
+        error_messages={'unique': 'این ایمیل قبلاً استفاده شده است'},
+
     )
     
     # Seller Information (Optional)
