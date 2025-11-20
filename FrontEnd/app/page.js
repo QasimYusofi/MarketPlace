@@ -23,17 +23,9 @@ const HomePage = () => {
 
   const checkLoginStatus = () => {
     const token = localStorage.getItem("accessToken");
-    const user = localStorage.getItem("phone");
 
     if (token) {
       setIsLoggedIn(true);
-      if (user) {
-        try {
-          setUserData(user);
-        } catch (error) {
-          console.error("Error parsing user data:", error);
-        }
-      }
     }
   };
 
@@ -41,10 +33,9 @@ const HomePage = () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem("accessToken");
-      const Id = localStorage.getItem("phone");
 
       // Replace with your actual API endpoint
-      const response = await fetch(`${BASE_API}/store-owners/${Id}/`, {
+      const response = await fetch(`${BASE_API}/store-owners/me/`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -52,11 +43,25 @@ const HomePage = () => {
         },
       });
 
-      if (response.ok) {
+      const responseUser = await fetch(`${BASE_API}/users/me/`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok || responseUser.ok) {
         console.log(response);
-        const userInfo = await response.json();
-        setUserData(userInfo);
-        console.log(userInfo);
+        console.log(responseUser);
+        const userInfo = await responseUser.json();
+        const userInfo2 = await response.json();
+        if (userInfo.phone) {
+          setUserData(userInfo);
+        } else {
+          setUserData(userInfo2);
+        }
+        console.log(userData);
         localStorage.setItem("user", JSON.stringify(userInfo));
 
         // Show success message

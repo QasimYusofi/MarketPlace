@@ -1,4 +1,4 @@
-// app/register/page.js
+// app/auth/owner-register/page.js
 "use client";
 
 import { useState } from "react";
@@ -254,7 +254,7 @@ export default function Register() {
         });
       }
     } catch (error) {
-      console.error("Registration error:", error.response.data);
+      console.error("Registration error:", error.response);
 
       let errorMessage = "خطا در ثبت نام. لطفا مجدد تلاش کنید";
 

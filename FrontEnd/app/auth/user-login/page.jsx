@@ -101,11 +101,9 @@ export default function Login() {
           },
         });
 
-        console.log(response);
         // Store token and user data
         if (response.data.access) {
           localStorage.setItem("accessToken", response.data.access);
-          localStorage.setItem("phone", cleanPhone);
         }
 
         // Update last login
@@ -157,8 +155,15 @@ export default function Login() {
     setShowPassword(!showPassword);
   };
 
+  // const handleForgotPassword = () => {
+  //   router.push("/forgot-password");
+  // };
+
   const handleForgotPassword = () => {
-    router.push("/forgot-password");
+    toast.success("لینک بازیابی رمز عبور به شماره شما ارسال شد", {
+      duration: 4000,
+      position: "top-center",
+    });
   };
 
   const handleSocialLogin = (provider) => {

@@ -106,7 +106,6 @@ export default function Login() {
         // Store token and Owner data
         if (response.data.access) {
           localStorage.setItem("accessToken", response.data.access);
-          localStorage.setItem("phone", cleanPhone);
         }
         // Update last login
         const redirectData = localStorage.getItem("redirectAfterLogin");
