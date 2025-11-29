@@ -25,7 +25,7 @@ const FooterPage = () => {
               target="_blank"
               rel="noopener noreferrer"
             >
-              {social.icon === "facebook" && <FiFacebook className="text-xl" />}
+              {social.icon === "facebook" && <FiFacebook className="text-2xl" />}
               {social.icon === "linkedin" && <FiLinkedin className="text-xl" />}
               {social.icon === "twitter" && <FiTwitter className="text-xl" />}
               {social.icon === "instagram" && (
@@ -113,8 +113,8 @@ const FooterPage = () => {
             </div>
             <div className="text-gray-900 text-sm text-center md:text-right">
               <p>
-                &copy; {new Date().getFullYear()} تمام حقوق محفوظ است.{" "}
-                {siteConfig.site.name}
+                &copy; {new Date().getFullYear()} تمام حقوق محفوظ {siteConfig.site.name} است.{" "}
+                
               </p>
             </div>
           </div>

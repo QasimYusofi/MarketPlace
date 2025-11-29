@@ -105,7 +105,7 @@ export default function HomePage() {
           {featuredProducts.featuredProducts.map((product) => (
             <div
               key={product.id}
-              className="text-center w-72 cursor-pointer flex justify-center items-center"
+              className="text-center cursor-pointer flex justify-center items-center"
             >
               <img
                 className="object-cover rounded-2xl shadow-sm h-96"

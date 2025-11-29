@@ -22,6 +22,7 @@ import {
 } from "react-icons/fi";
 
 import { Store, LogIn, User } from "lucide-react";
+const BASE_API = `${process.env.NEXT_PUBLIC_API_URL}`;
 
 export default function Header() {
   const [cartCount, setCartCount] = useState(0);
@@ -48,23 +49,45 @@ export default function Header() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        const token = localStorage.getItem("accessToken");
+        const userResponse = await fetch(`${BASE_API}/users/me/`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        console.log("user response: ");
+        console.log(userResponse);
+
         // Check for user session
-        const userResponse = await fetch("/api/auth/user-session");
         if (userResponse.ok) {
           const userResult = await userResponse.json();
-          if (userResult.isAuthenticated && userResult.user) {
-            setUser(userResult.user);
+          console.log(userResult);
+          if (userResult.status === "active") {
+            setUser(userResult);
             setLoading(false);
             return;
           }
         }
 
+        // Replace with your actual API endpoint
+        const storeResponse = await fetch(`${BASE_API}/store-owners/me/`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
         // Check for store owner session
-        const storeResponse = await fetch("/api/auth/session");
         if (storeResponse.ok) {
+          console.log("store reulst: ");
           const storeResult = await storeResponse.json();
-          if (storeResult.authenticated && storeResult.user) {
-            setStoreOwner(storeResult.user);
+          console.log(storeResult);
+          if (storeResult || storeResult.status === "active") {
+            setStoreOwner(storeResult);
           }
         }
       } catch (error) {
@@ -74,7 +97,10 @@ export default function Header() {
       }
     };
 
-    checkAuth();
+    const token = localStorage.getItem("accessToken");
+    if (token) {
+      checkAuth();
+    }
   }, []);
 
   const handleSignupChoice = (userType) => {
@@ -83,27 +109,30 @@ export default function Header() {
 
   const handleLogoutConfirm = async () => {
     try {
-      let response;
+      // let response;
 
-      // Determine which logout endpoint to call based on current user type
-      if (user) {
-        response = await fetch("/api/auth/user-logout", { method: "POST" });
-      } else if (storeOwner) {
-        response = await fetch("/api/auth/session", { method: "DELETE" });
-      }
+      // // Determine which logout endpoint to call based on current user type
+      // if (user) {
+      //   response = await fetch("/api/auth/user-logout", { method: "POST" });
+      // } else if (storeOwner) {
+      //   response = await fetch("/api/auth/session", { method: "DELETE" });
+      // }
 
-      if (response && response.ok) {
-        setUser(null);
-        setStoreOwner(null);
-        setIsProfileDropdownOpen(false);
-        setIsLogoutModalOpen(false);
-        showToast("با موفقیت از حساب کاربری خارج شدید", "success");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("user");
 
-        // Redirect to home page after a short delay
-        setTimeout(() => {
-          window.location.href = "/";
-        }, 1000);
-      }
+      // if (response && response.ok) {
+      setUser(null);
+      setStoreOwner(null);
+      setIsProfileDropdownOpen(false);
+      setIsLogoutModalOpen(false);
+      showToast("با موفقیت از حساب کاربری خارج شدید", "success");
+
+      // Redirect to home page after a short delay
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1000);
+      // }
     } catch (error) {
       console.error("Error logging out:", error);
       showToast("خطا در خروج از حساب کاربری", "error");
@@ -118,9 +147,9 @@ export default function Header() {
   // Helper function to get display name
   const getDisplayName = () => {
     if (user) {
-      return user.firstName || user.fullName || "کاربر";
+      return user.first_name || user.full_name || "کاربر";
     } else if (storeOwner) {
-      return storeOwner.sellerFirstName || storeOwner.storeName || "فروشنده";
+      return storeOwner.first_name || storeOwner.full_name || "فروشنده";
     }
     return "";
   };
@@ -128,11 +157,9 @@ export default function Header() {
   // Helper function to get display initial
   const getDisplayInitial = () => {
     if (user) {
-      return user.firstName?.[0] || user.fullName?.[0] || "U";
+      return user.first_name?.[0] || user.full_name?.[0] || "U";
     } else if (storeOwner) {
-      return (
-        storeOwner.sellerFirstName?.[0] || storeOwner.storeName?.[0] || "S"
-      );
+      return storeOwner.first_name?.[0] || storeOwner.full_name?.[0] || "S";
     }
     return "";
   };
@@ -154,11 +181,12 @@ export default function Header() {
   // Helper function to get profile URL
   const getProfileUrl = () => {
     if (user) return "/user/profile";
-    return "/";
+    return "/dashboard";
   };
 
   const handleProductsPage = (provider) => {
-    alert(`ورود به ${provider} در حال توسعه است...`);
+    // alert();
+    showToast(`ورود به ${provider} در حال توسعه است...`, "error");
 
     // Or use console.log for debugging
     console.log(`Toast for ${provider}: در حال توسعه است...`);
@@ -385,7 +413,7 @@ export default function Header() {
 
         {/* Enhanced Mobile Menu */}
         {isMenuOpen && (
-          <div className="lg:hidden border-t border-gray-200 bg-white/95 backdrop-blur-md">
+          <div className="lg:hidden border-t border-gray-200 backdrop-blur-md h-screen">
             <div className="py-6 space-y-6">
               {/* Mobile Navigation */}
               {/* <nav className="space-y-4">
@@ -565,7 +593,7 @@ export default function Header() {
 
         {/* Signup Modal */}
         {isSignupModalOpen && (
-          <div className="w-screen h-screen absolute inset-0 bg-black/50 backdrop-blur-sm z-100 flex items-center justify-center p-4">
+          <div className="w-screen h-screen fixed inset-0 bg-black/50 backdrop-blur-sm z-100 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all duration-300 scale-95 hover:scale-100">
               {/* Modal Header */}
               <div className="p-6 border-b border-gray-100">

@@ -59,3 +59,4 @@ Ok to proceed? (y)
     - npm install react-icons react-hot-toast
     - npm install axios react-hot-toast
     - npm install lucide-react   // for more Icons
+    - npm install react-hook-form  // for file
