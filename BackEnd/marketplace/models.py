@@ -2,8 +2,7 @@ from django.db import models
 from django_mongodb_backend.fields import ObjectIdAutoField
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
-from django.core.validators import RegexValidator, MinLengthValidator, MaxLengthValidator
-from django.utils import timezone
+from django.core.validators import RegexValidator, MinLengthValidator, MaxLengthValidator, MinValueValidator, MaxValueValidator
 
 
 phone_validator = RegexValidator(
@@ -89,12 +88,7 @@ class BaseUser(AbstractBaseUser, PermissionsMixin):
     )
     birthday = models.DateField(null=True, blank=True)
 
-    # Profile image binary data + metadata (store in MongoDB as binary)
-    image_data = models.BinaryField(null=True, blank=True)
-    image_content_type = models.CharField(max_length=100, null=True, blank=True)
-    image_filename = models.CharField(max_length=255, null=True, blank=True)
-    image_size = models.IntegerField(null=True, blank=True)
-    image_uploaded_at = models.DateTimeField(null=True, blank=True)
+    image = models.ImageField(null=True, blank=True, upload_to='users/')
 
     city = models.CharField(max_length=50, null=True, blank=True)
 
@@ -143,69 +137,31 @@ class BaseUser(AbstractBaseUser, PermissionsMixin):
         return f"{self.first_name} {self.last_name}".strip()
 
     def has_profile_image(self):
-        return bool(self.image_data)
+        return self.image is not None
 
     def get_profile_image_info(self):
-        if not self.image_data:
+        if not self.image:
             return None
         return {
-            "filename": self.image_filename,
-            "contentType": self.image_content_type,
-            "size": self.image_size,
-            "uploadedAt": self.image_uploaded_at,
-            "hasData": True,
+            "url": self.image.url,
+            "hasUrl": True,
         }
 
-    def update_profile_image(self, file_data):
-        # file_data may be from DRF Upload: has .read(), .content_type, .name, .size
-        buffer = None
-        if hasattr(file_data, "read"):
-            content = file_data.read()
-            buffer = content
-            self.image_filename = getattr(file_data, "name", None)
-            self.image_content_type = getattr(file_data, "content_type", None)
-            self.image_size = len(content)
-        else:
-            # dict-like input similar to your Next.js shape
-            buffer = file_data.get("buffer") or file_data.get("data")
-            self.image_filename = file_data.get("originalname") or file_data.get("filename")
-            self.image_content_type = file_data.get("mimetype") or file_data.get("contentType")
-            self.image_size = file_data.get("size")
-
-        self.image_data = buffer
-        self.image_uploaded_at = timezone.now()
-        self.save(update_fields=[
-            "image_data",
-            "image_content_type",
-            "image_filename",
-            "image_size",
-            "image_uploaded_at",
-        ])
+    def update_profile_image(self, image):
+        """Update profile image with image file"""
+        if self.image:
+            self.image.delete(save=False)
+        self.image = image
+        self.save(update_fields=["image"])
         return self
 
     def remove_profile_image(self):
-        self.image_data = None
-        self.image_content_type = None
-        self.image_filename = None
-        self.image_size = None
-        self.image_uploaded_at = None
-        self.save(update_fields=[
-            "image_data",
-            "image_content_type",
-            "image_filename",
-            "image_size",
-            "image_uploaded_at",
-        ])
+        """Remove profile image"""
+        if self.image:
+            self.image.delete(save=False)
+            self.image = None
+            self.save(update_fields=["image"])
         return self
-
-    def get_image_as_base64(self):
-        import base64
-
-        if not self.image_data:
-            return None
-        b64 = base64.b64encode(self.image_data).decode("utf-8")
-        ctype = self.image_content_type or "application/octet-stream"
-        return f"data:{ctype};base64,{b64}"
 
     def __str__(self):
         return self.full_name or self.phone
@@ -325,11 +281,7 @@ class StoreOwner(BaseUser):
     
     # Store Logo Image (separate from profile image)
 
-    store_logo_data = models.BinaryField(null=True, blank=True)
-    store_logo_content_type = models.CharField(max_length=100, null=True, blank=True)
-    store_logo_filename = models.CharField(max_length=255, null=True, blank=True)
-    store_logo_size = models.IntegerField(null=True, blank=True)
-    store_logo_uploaded_at = models.DateTimeField(null=True, blank=True)
+    store_logo = models.ImageField(null=True, blank=True, upload_to='store_logos/')
     
     # Store Details
     store_domain = models.CharField(
@@ -446,71 +398,32 @@ class StoreOwner(BaseUser):
     # Store Logo Methods
     def has_store_logo(self):
         """Check if store has a logo"""
-        return bool(self.store_logo_data)
-    
+        return self.store_logo is not None
+
     def get_store_logo_info(self):
         """Get store logo metadata"""
-        if not self.store_logo_data:
+        if not self.store_logo:
             return None
         return {
-            "filename": self.store_logo_filename,
-            "contentType": self.store_logo_content_type,
-            "size": self.store_logo_size,
-            "uploadedAt": self.store_logo_uploaded_at,
-            "hasData": True,
+            "url": self.store_logo.url,
+            "hasUrl": True,
         }
-    
-    def update_store_logo(self, file_data):
-        """Update store logo with new image data"""
-        buffer = None
-        if hasattr(file_data, "read"):
-            content = file_data.read()
-            buffer = content
-            self.store_logo_filename = getattr(file_data, "name", None)
-            self.store_logo_content_type = getattr(file_data, "content_type", None)
-            self.store_logo_size = len(content)
-        else:
-            buffer = file_data.get("buffer") or file_data.get("data")
-            self.store_logo_filename = file_data.get("originalname") or file_data.get("filename")
-            self.store_logo_content_type = file_data.get("mimetype") or file_data.get("contentType")
-            self.store_logo_size = file_data.get("size")
-        
-        self.store_logo_data = buffer
-        self.store_logo_uploaded_at = timezone.now()
-        self.save(update_fields=[
-            "store_logo_data",
-            "store_logo_content_type",
-            "store_logo_filename",
-            "store_logo_size",
-            "store_logo_uploaded_at",
-        ])
+
+    def update_store_logo(self, logo):
+        """Update store logo with image file"""
+        if self.store_logo:
+            self.store_logo.delete(save=False)
+        self.store_logo = logo
+        self.save(update_fields=["store_logo"])
         return self
-    
+
     def remove_store_logo(self):
         """Remove store logo"""
-        self.store_logo_data = None
-        self.store_logo_content_type = None
-        self.store_logo_filename = None
-        self.store_logo_size = None
-        self.store_logo_uploaded_at = None
-        self.save(update_fields=[
-            "store_logo_data",
-            "store_logo_content_type",
-            "store_logo_filename",
-            "store_logo_size",
-            "store_logo_uploaded_at",
-        ])
+        if self.store_logo:
+            self.store_logo.delete(save=False)
+            self.store_logo = None
+            self.save(update_fields=["store_logo"])
         return self
-    
-    def get_store_logo_as_base64(self):
-        """Get store logo as base64 encoded string"""
-        import base64
-        
-        if not self.store_logo_data:
-            return None
-        b64 = base64.b64encode(self.store_logo_data).decode("utf-8")
-        ctype = self.store_logo_content_type or "application/octet-stream"
-        return f"data:{ctype};base64,{b64}"
     
     # Rating Methods
     def update_seller_rating(self, new_rating):
@@ -549,8 +462,355 @@ class StoreOwner(BaseUser):
         self.total_sales += 1
         self.total_revenue += amount
         self.save(update_fields=["total_sales", "total_revenue"])
-    
+
     def update_active_products_count(self, count):
         """Update active products count"""
         self.active_products_count = count
         self.save(update_fields=["active_products_count"])
+
+
+class ProductImage(models.Model):
+    """
+    Product Image model for storing multiple images per product.
+    """
+    id = ObjectIdAutoField(primary_key=True)
+
+    product = models.ForeignKey(
+        'Product',
+        related_name='images',
+        on_delete=models.CASCADE,
+        help_text="محصول مرتبط با تصویر"
+    )
+    image = models.ImageField(
+        upload_to='products/',
+        help_text="تصویر محصول"
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="آیا تصویر اصلی محصول است"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Product Image"
+        verbose_name_plural = "Product Images"
+
+    def __str__(self):
+        return f"Image for {self.product.title}"
+
+    def save(self, *args, **kwargs):
+        if self.is_primary:
+            # Ensure only one primary image per product
+            ProductImage.objects.filter(product=self.product, is_primary=True).update(is_primary=False)
+        super().save(*args, **kwargs)
+
+
+
+
+class Product(models.Model):
+    """
+    Product model representing items sold by store owners.
+    Each product belongs to a store owner.
+    """
+    id = ObjectIdAutoField(primary_key=True)
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        INACTIVE = "inactive", "Inactive"
+        DRAFT = "draft", "Draft"
+        OUT_OF_STOCK = "out_of_stock", "Out of Stock"
+
+    class Category(models.TextChoices):
+        MEN = "men", "Men"
+        WOMEN = "women", "Women"
+        KIDS = "kids", "Kids"
+        BABY = "baby", "Baby"
+
+    # Foreign Key to StoreOwner
+    store_owner = models.ForeignKey(
+        StoreOwner,
+        on_delete=models.CASCADE,
+        related_name='products',
+        help_text="فروشنده صاحب محصول"
+    )
+
+    # Basic Product Information
+    title = models.CharField(
+        max_length=255,
+        help_text="عنوان محصول",
+        error_messages={'required': "عنوان محصول الزامی است"}
+    )
+    description = models.TextField(
+        help_text="توضیحات محصول",
+        error_messages={'required': "توضیحات محصول الزامی است"}
+    )
+    sku = models.CharField(
+        max_length=100,
+        help_text="کد محصول",
+        error_messages={'required': "کد محصول الزامی است"}
+    )
+
+    # Pricing
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        help_text="قیمت محصول",
+        error_messages={
+            'required': "قیمت محصول الزامی است",
+            'min_value': "قیمت نمی‌تواند منفی باشد"
+        }
+    )
+    compare_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text="قیمت مقایسه (برای تخفیف)",
+        error_messages={'min_value': "قیمت مقایسه نمی‌تواند منفی باشد"}
+    )
+
+    # Inventory
+    stock = models.PositiveIntegerField(
+        default=0,
+        help_text="موجودی محصول",
+        error_messages={'required': "موجودی محصول الزامی است"}
+    )
+
+    # Categorization
+    category = models.CharField(
+        max_length=20,
+        choices=Category.choices,
+        help_text="دسته‌بندی محصول",
+        error_messages={'required': "دسته‌بندی محصول الزامی است"}
+    )
+
+    # Product Attributes (stored as JSON)
+    sizes = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="سایزهای محصول"
+    )
+    colors = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="رنگ‌های محصول"
+    )
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="برچسب‌های محصول"
+    )
+
+    # Status
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+        help_text="وضعیت محصول"
+    )
+
+    # Analytics
+    views = models.PositiveIntegerField(
+        default=0,
+        help_text="تعداد بازدیدها"
+    )
+    sales_count = models.PositiveIntegerField(
+        default=0,
+        help_text="تعداد فروش"
+    )
+
+    # Rating system
+    rating = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="امتیاز محصول (average, count)"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        # Compound unique index for SKU per store owner
+        constraints = [
+            models.UniqueConstraint(
+                fields=['store_owner', 'sku'],
+                name='unique_sku_per_store_owner'
+            )
+        ]
+        indexes = [
+            models.Index(fields=['store_owner', 'sku']),
+            models.Index(fields=['store_owner', 'status']),
+            models.Index(fields=['store_owner', 'category']),
+            models.Index(fields=['status']),
+            models.Index(fields=['category']),
+        ]
+        verbose_name = "Product"
+        verbose_name_plural = "Products"
+
+    def __str__(self):
+        return f"{self.title} - {self.sku}"
+
+    def save(self, *args, **kwargs):
+        # Initialize rating if empty
+        if not self.rating:
+            self.rating = {"average": 0, "count": 0}
+        super().save(*args, **kwargs)
+
+    # Product Properties
+    @property
+    def is_in_stock(self):
+        """Check if product is in stock"""
+        return self.stock > 0
+
+    @property
+    def is_low_stock(self):
+        """Check if product is low in stock (10 or fewer items)"""
+        return self.stock > 0 and self.stock <= 10
+
+    @property
+    def discount_percentage(self):
+        """Calculate discount percentage"""
+        if self.compare_price and self.compare_price > self.price:
+            return round((1 - self.price / self.compare_price) * 100)
+        return 0
+
+    # Product Image Methods
+    def add_image(self, image, is_primary=False):
+        """Add an image file to the product"""
+        if is_primary:
+            ProductImage.objects.filter(product=self, is_primary=True).update(is_primary=False)
+        product_image = ProductImage.objects.create(
+            product=self,
+            image=image,
+            is_primary=is_primary or not self.images.exists()  # First image is primary by default
+        )
+        return product_image
+
+    def remove_image(self, image_id):
+        """Remove an image by its ID"""
+        try:
+            product_image = ProductImage.objects.get(id=image_id, product=self)
+            product_image.image.delete(save=False)  # Delete the file
+            product_image.delete()
+            # If we removed the primary image, make the first remaining image primary
+            if product_image.is_primary and self.images.exists() and not self.images.filter(is_primary=True).exists():
+                first_image = self.images.first()
+                first_image.is_primary = True
+                first_image.save()
+            return product_image
+        except ProductImage.DoesNotExist:
+            return None
+
+    def get_primary_image_url(self):
+        """Get the primary image URL"""
+        primary_img = self.images.filter(is_primary=True).first()
+        return primary_img.image.url if primary_img else None
+
+    def get_all_image_urls(self):
+        """Get all image URLs"""
+        return [img.image.url for img in self.images.all()]
+
+    def set_primary_image(self, image_id):
+        """Set an image as primary by its ID"""
+        try:
+            img = ProductImage.objects.get(id=image_id, product=self)
+            ProductImage.objects.filter(product=self, is_primary=True).update(is_primary=False)
+            img.is_primary = True
+            img.save()
+            return True
+        except ProductImage.DoesNotExist:
+            return False
+
+    # Rating Methods
+    def update_rating(self):
+        """Recalculate product rating based on all individual ratings"""
+        ratings = self.ratings.all()
+        if ratings:
+            ratings_list = [r.rating for r in ratings]
+            average = sum(ratings_list) / len(ratings_list)
+            count = len(ratings_list)
+        else:
+            average = 0
+            count = 0
+
+        self.rating = {
+            "average": round(float(average), 2),
+            "count": count
+        }
+        self.save(update_fields=["rating"])
+
+    def add_rating(self, customer, rating_value):
+        """Add a new rating from a customer"""
+        # Create the rating (will raise IntegrityError if already exists due to unique constraint)
+        ProductRating.objects.create(
+            customer=customer,
+            product=self,
+            rating=rating_value
+        )
+        # Recalculate aggregate rating
+        self.update_rating()
+        return self
+
+    # Analytics Methods
+    def increment_views(self):
+        """Increment view count"""
+        self.views += 1
+        self.save(update_fields=["views"])
+
+    def increment_sales(self):
+        """Increment sales count"""
+        self.sales_count += 1
+        self.save(update_fields=["sales_count"])
+
+class ProductRating(models.Model):
+    """
+    Product Rating model for storing individual customer ratings for products.
+    Each customer can rate each product only once.
+    """
+    id = ObjectIdAutoField(primary_key=True)
+
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name='product_ratings',
+        help_text="مشتری که امتیاز داده است"
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='ratings',
+        help_text="محصول مورد امتیاز"
+    )
+    rating = models.DecimalField(
+        max_digits=2,
+        decimal_places=1,
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        help_text="امتیاز داده شده (0-5)",
+        error_messages={
+            'min_value': "امتیاز نمی‌تواند کمتر از 0 باشد",
+            'max_value': "امتیاز نمی‌تواند بیشتر از 5 باشد"
+        }
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Product Rating"
+        verbose_name_plural = "Product Ratings"
+        # Unique constraint: each customer can rate each product only once
+        constraints = [
+            models.UniqueConstraint(
+                fields=['customer', 'product'],
+                name='unique_customer_product_rating'
+            )
+        ]
+        indexes = [
+            models.Index(fields=['customer', 'product']),
+            models.Index(fields=['product', 'rating']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.customer.full_name} rated {self.product.title}: {self.rating}"
