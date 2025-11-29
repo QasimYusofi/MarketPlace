@@ -59,6 +59,46 @@ class IsStoreOwnerOrAdmin(BasePermission):
         return False
 
 
+class IsCustomer(BasePermission):
+    """
+    Permission check: only customers can access customer-specific actions like rating.
+    """
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        return hasattr(user, 'user_type') and user.user_type == 'customer'
+
+
+class IsCustomerOrAdmin(BasePermission):
+    """
+    Permission check: customers can access actions, admins can access all.
+    """
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        # Admin can access all
+        if getattr(user, 'is_superuser', False):
+            return True
+        # Customers can access
+        if hasattr(user, 'user_type') and user.user_type == 'customer':
+            return True
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        # Admin can access all objects
+        if getattr(user, 'is_superuser', False):
+            return True
+        # Customer can access any object (for rating)
+        if hasattr(user, 'user_type') and user.user_type == 'customer':
+            return True
+        return False
+
+
 class IsStoreOwner(BasePermission):
     """
     Permission check: only store owners can create/manipulate products.

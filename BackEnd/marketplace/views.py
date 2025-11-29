@@ -5,7 +5,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse
 from .models import Customer, StoreOwner, Product
 from .serializers import CustomerSerializer, StoreOwnerSerializer, ProductSerializer
-from .permissions import IsAdminRole, IsSelfOrAdmin, IsStoreOwner, IsStoreOwnerOrAdmin
+from .permissions import IsAdminRole, IsSelfOrAdmin, IsStoreOwner, IsStoreOwnerOrAdmin, IsCustomer, IsCustomerOrAdmin
 
 
 
@@ -109,9 +109,13 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
                           'upload_profile_image', 'remove_profile_image',
                           'upload_store_logo', 'remove_store_logo',
                           'profile_image_info', 'store_logo_info',
-                          'download_profile_image', 'download_store_logo']:
+                          'download_profile_image', 'download_store_logo',
+                          'statistics']:
             # Store owner can manage their own data, admins can manage all
             return [IsSelfOrAdmin()]
+        if self.action in ['rate-seller', 'rate-store']:
+            # Only customers and admins can rate
+            return [IsCustomerOrAdmin()]
         return [permissions.IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
@@ -348,10 +352,15 @@ class ProductViewSet(viewsets.ModelViewSet):
             # Only store owners can create products
             return [IsStoreOwner()]
         if self.action in ['update', 'partial_update', 'destroy',
-                          'add_image', 'remove_image', 'set_primary_image',
-                          'update_rating', 'increment_views']:
+                          'add_image', 'remove_image', 'set_primary_image']:
             # Store owners can manage their own products, admins can manage all
             return [IsStoreOwnerOrAdmin()]
+        if self.action in ['increment_views']:
+            # Anyone can view products (increment view count)
+            return [permissions.AllowAny()]
+        if self.action in ['update_rating']:
+            # Only customers and admins can rate
+            return [IsCustomerOrAdmin()]
         return [permissions.IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
