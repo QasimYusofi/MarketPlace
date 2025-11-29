@@ -20,6 +20,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             'phone',
             'post_code',
             'birthday',
+            'image',
             'city',
             'is_verified',
             'status',
@@ -58,6 +59,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             phone=validated_data.get('phone'),
             post_code=validated_data.get('post_code'),
             birthday=validated_data.get('birthday'),
+            image=validated_data.get('image'),
             city=validated_data.get('city'),
             status=validated_data.get('status', Customer.Status.ACTIVE),
         )
@@ -69,7 +71,7 @@ class CustomerSerializer(serializers.ModelSerializer):
         return customer
 
     def update(self, instance, validated_data):
-        for field in ['first_name', 'last_name', 'email', 'phone', 'post_code', 'birthday', 'city', 'status']:
+        for field in ['first_name', 'last_name', 'email', 'phone', 'post_code', 'birthday', 'image', 'city', 'status']:
             if field in validated_data:
                 setattr(instance, field, validated_data[field])
 
@@ -107,7 +109,6 @@ class ProductSerializer(serializers.ModelSerializer):
             'sizes',
             'colors',
             'tags',
-            'image_urls',
             'status',
             'views',
             'sales_count',
@@ -145,7 +146,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_images_count(self, obj):
         """Return number of images"""
-        return len(obj.image_urls) if isinstance(obj.image_urls, list) else 0
+        return obj.images.count()
 
     def validate_sku(self, value):
         """Validate SKU uniqueness per store owner"""
@@ -259,7 +260,7 @@ class ProductSerializer(serializers.ModelSerializer):
         # Update fields
         for field in [
             'title', 'description', 'sku', 'price', 'compare_price',
-            'stock', 'category', 'sizes', 'colors', 'tags', 'image_urls',
+            'stock', 'category', 'sizes', 'colors', 'tags',
             'status', 'rating'
         ]:
             if field in validated_data:
@@ -293,6 +294,7 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
             'phone',
             'post_code',
             'birthday',
+            'image',
             'city',
             'is_verified',
             'status',
@@ -311,6 +313,7 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
             'seller_join_date',
             'seller_status',
             'seller_rating',
+            'store_logo',
             'has_store_logo',
             'store_logo_info',
             'store_domain',
@@ -459,6 +462,7 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
             phone=validated_data.get('phone'),
             post_code=validated_data.get('post_code'),
             birthday=validated_data.get('birthday'),
+            image=validated_data.get('image'),
             city=validated_data.get('city'),
             status=validated_data.get('status', StoreOwner.Status.ACTIVE),
             # Store owner specific fields
@@ -469,6 +473,7 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
             seller_social_links=validated_data.get('seller_social_links', {}),
             seller_status=validated_data.get('seller_status', StoreOwner.SellerStatus.APPROVED),
             seller_rating=validated_data.get('seller_rating', {"average": 0, "count": 0}),
+            store_logo=validated_data.get('store_logo'),
             store_domain=validated_data.get('store_domain'),
             store_description=validated_data.get('store_description', ''),
             store_type=validated_data.get('store_type', StoreOwner.StoreType.SINGLE_VENDOR),
@@ -490,10 +495,10 @@ class StoreOwnerSerializer(serializers.ModelSerializer):
         """Update store owner instance"""
         # Update basic fields
         for field in [
-            'first_name', 'last_name', 'email', 'phone', 'post_code', 
-            'birthday', 'city', 'status', 'store_name', 'seller_address',
+            'first_name', 'last_name', 'email', 'phone', 'post_code',
+            'birthday', 'image', 'city', 'status', 'store_name', 'seller_address',
             'seller_license_id', 'seller_bio', 'seller_social_links',
-            'seller_status', 'store_domain', 'store_description', 'store_type',
+            'seller_status', 'store_logo', 'store_domain', 'store_description', 'store_type',
             'store_established_at', 'working_hours', 'supported_languages',
             'supported_currencies', 'terms_and_conditions', 'privacy_policy',
             'payment_settings'

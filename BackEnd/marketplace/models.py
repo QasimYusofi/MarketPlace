@@ -88,7 +88,7 @@ class BaseUser(AbstractBaseUser, PermissionsMixin):
     )
     birthday = models.DateField(null=True, blank=True)
 
-    image_url = models.URLField(null=True, blank=True)
+    image = models.ImageField(null=True, blank=True, upload_to='users/')
 
     city = models.CharField(max_length=50, null=True, blank=True)
 
@@ -137,26 +137,30 @@ class BaseUser(AbstractBaseUser, PermissionsMixin):
         return f"{self.first_name} {self.last_name}".strip()
 
     def has_profile_image(self):
-        return bool(self.image_url)
+        return self.image is not None
 
     def get_profile_image_info(self):
-        if not self.image_url:
+        if not self.image:
             return None
         return {
-            "url": self.image_url,
+            "url": self.image.url,
             "hasUrl": True,
         }
 
-    def update_profile_image(self, image_url):
-        """Update profile image with image URL"""
-        self.image_url = image_url
-        self.save(update_fields=["image_url"])
+    def update_profile_image(self, image):
+        """Update profile image with image file"""
+        if self.image:
+            self.image.delete(save=False)
+        self.image = image
+        self.save(update_fields=["image"])
         return self
 
     def remove_profile_image(self):
-        """Remove profile image URL"""
-        self.image_url = None
-        self.save(update_fields=["image_url"])
+        """Remove profile image"""
+        if self.image:
+            self.image.delete(save=False)
+            self.image = None
+            self.save(update_fields=["image"])
         return self
 
     def __str__(self):
@@ -277,7 +281,7 @@ class StoreOwner(BaseUser):
     
     # Store Logo Image (separate from profile image)
 
-    store_logo_url = models.URLField(null=True, blank=True)
+    store_logo = models.ImageField(null=True, blank=True, upload_to='store_logos/')
     
     # Store Details
     store_domain = models.CharField(
@@ -394,27 +398,31 @@ class StoreOwner(BaseUser):
     # Store Logo Methods
     def has_store_logo(self):
         """Check if store has a logo"""
-        return bool(self.store_logo_url)
+        return self.store_logo is not None
 
     def get_store_logo_info(self):
         """Get store logo metadata"""
-        if not self.store_logo_url:
+        if not self.store_logo:
             return None
         return {
-            "url": self.store_logo_url,
+            "url": self.store_logo.url,
             "hasUrl": True,
         }
 
-    def update_store_logo(self, logo_url):
-        """Update store logo with image URL"""
-        self.store_logo_url = logo_url
-        self.save(update_fields=["store_logo_url"])
+    def update_store_logo(self, logo):
+        """Update store logo with image file"""
+        if self.store_logo:
+            self.store_logo.delete(save=False)
+        self.store_logo = logo
+        self.save(update_fields=["store_logo"])
         return self
 
     def remove_store_logo(self):
-        """Remove store logo URL"""
-        self.store_logo_url = None
-        self.save(update_fields=["store_logo_url"])
+        """Remove store logo"""
+        if self.store_logo:
+            self.store_logo.delete(save=False)
+            self.store_logo = None
+            self.save(update_fields=["store_logo"])
         return self
     
     # Rating Methods
@@ -454,11 +462,47 @@ class StoreOwner(BaseUser):
         self.total_sales += 1
         self.total_revenue += amount
         self.save(update_fields=["total_sales", "total_revenue"])
-    
+
     def update_active_products_count(self, count):
         """Update active products count"""
         self.active_products_count = count
         self.save(update_fields=["active_products_count"])
+
+
+class ProductImage(models.Model):
+    """
+    Product Image model for storing multiple images per product.
+    """
+    id = ObjectIdAutoField(primary_key=True)
+
+    product = models.ForeignKey(
+        'Product',
+        related_name='images',
+        on_delete=models.CASCADE,
+        help_text="محصول مرتبط با تصویر"
+    )
+    image = models.ImageField(
+        upload_to='products/',
+        help_text="تصویر محصول"
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="آیا تصویر اصلی محصول است"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Product Image"
+        verbose_name_plural = "Product Images"
+
+    def __str__(self):
+        return f"Image for {self.product.title}"
+
+    def save(self, *args, **kwargs):
+        if self.is_primary:
+            # Ensure only one primary image per product
+            ProductImage.objects.filter(product=self.product, is_primary=True).update(is_primary=False)
+        super().save(*args, **kwargs)
 
 
 class Product(models.Model):
@@ -557,13 +601,6 @@ class Product(models.Model):
         help_text="برچسب‌های محصول"
     )
 
-    # Product Images (stored as JSON list of URLs)
-    image_urls = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="تصاویر محصول (لیست URLها)"
-    )
-
     # Status
     status = models.CharField(
         max_length=20,
@@ -638,57 +675,51 @@ class Product(models.Model):
         return 0
 
     # Product Image Methods
-    def add_image_url(self, image_url):
-        """Add an image URL to the product"""
-        if not isinstance(self.image_urls, list):
-            self.image_urls = []
+    def add_image(self, image, is_primary=False):
+        """Add an image file to the product"""
+        if is_primary:
+            ProductImage.objects.filter(product=self, is_primary=True).update(is_primary=False)
+        product_image = ProductImage.objects.create(
+            product=self,
+            image=image,
+            is_primary=is_primary or not self.images.exists()  # First image is primary by default
+        )
+        return product_image
 
-        # Create image object
-        image_obj = {
-            'url': image_url,
-            'isPrimary': len(self.image_urls) == 0,  # First image is primary by default
-        }
-
-        self.image_urls.append(image_obj)
-        self.save(update_fields=["image_urls"])  # Save after adding
-        return image_obj
-
-    def remove_image_url(self, index):
-        """Remove an image URL by index"""
-        if isinstance(self.image_urls, list) and 0 <= index < len(self.image_urls):
-            removed_image = self.image_urls.pop(index)
+    def remove_image(self, image_id):
+        """Remove an image by its ID"""
+        try:
+            product_image = ProductImage.objects.get(id=image_id, product=self)
+            product_image.image.delete(save=False)  # Delete the file
+            product_image.delete()
             # If we removed the primary image, make the first remaining image primary
-            if removed_image.get('isPrimary') and self.image_urls:
-                self.image_urls[0]['isPrimary'] = True
-                self.save(update_fields=["image_urls"])
-            return removed_image
-        return None
+            if product_image.is_primary and self.images.exists() and not self.images.filter(is_primary=True).exists():
+                first_image = self.images.first()
+                first_image.is_primary = True
+                first_image.save()
+            return product_image
+        except ProductImage.DoesNotExist:
+            return None
 
     def get_primary_image_url(self):
         """Get the primary image URL"""
-        if isinstance(self.image_urls, list):
-            for image in self.image_urls:
-                if image.get('isPrimary'):
-                    return image.get('url')
-        return None
+        primary_img = self.images.filter(is_primary=True).first()
+        return primary_img.image.url if primary_img else None
 
     def get_all_image_urls(self):
         """Get all image URLs"""
-        if isinstance(self.image_urls, list):
-            return [img.get('url') for img in self.image_urls if img.get('url')]
-        return []
+        return [img.image.url for img in self.images.all()]
 
-    def set_primary_image_url(self, index):
-        """Set an image as primary by index"""
-        if isinstance(self.image_urls, list) and 0 <= index < len(self.image_urls):
-            # Reset all images to non-primary
-            for img in self.image_urls:
-                img['isPrimary'] = False
-            # Set the specified image as primary
-            self.image_urls[index]['isPrimary'] = True
-            self.save(update_fields=["image_urls"])
+    def set_primary_image(self, image_id):
+        """Set an image as primary by its ID"""
+        try:
+            img = ProductImage.objects.get(id=image_id, product=self)
+            ProductImage.objects.filter(product=self, is_primary=True).update(is_primary=False)
+            img.is_primary = True
+            img.save()
             return True
-        return False
+        except ProductImage.DoesNotExist:
+            return False
 
     # Rating Methods
     def update_rating(self, new_rating):
