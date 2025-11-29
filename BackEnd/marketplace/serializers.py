@@ -149,14 +149,20 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def validate_sku(self, value):
         """Validate SKU uniqueness per store owner"""
-        store_owner = self.context.get('request').user if self.context.get('request') else None
-        if store_owner and isinstance(store_owner, StoreOwner):
-            # Check uniqueness for create or update
-            query = Product.objects.filter(store_owner=store_owner, sku=value)
-            if self.instance:
-                query = query.exclude(id=self.instance.id)
-            if query.exists():
-                raise serializers.ValidationError("این کد محصول قبلاً برای این فروشگاه استفاده شده است")
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            user = request.user
+            if hasattr(user, 'user_type') and user.user_type == 'store_owner':
+                # Check uniqueness for create or update
+                try:
+                    store_owner = StoreOwner.objects.get(id=user.id)
+                    query = Product.objects.filter(store_owner=store_owner, sku=value)
+                    if self.instance:
+                        query = query.exclude(id=self.instance.id)
+                    if query.exists():
+                        raise serializers.ValidationError("این کد محصول قبلاً برای این فروشگاه استفاده شده است")
+                except StoreOwner.DoesNotExist:
+                    pass  # If store owner not found, skip uniqueness check
 
         if not value or len(value.strip()) == 0:
             raise serializers.ValidationError("کد محصول الزامی است")
@@ -231,9 +237,15 @@ class ProductSerializer(serializers.ModelSerializer):
         if not request or not hasattr(request, 'user'):
             raise serializers.ValidationError("اطلاعات کاربر یافت نشد")
 
-        store_owner = request.user
-        if not isinstance(store_owner, StoreOwner):
+        user = request.user
+        if not hasattr(user, 'user_type') or user.user_type != 'store_owner':
             raise serializers.ValidationError("فقط صاحبان فروشگاه می‌توانند محصول ایجاد کنند")
+
+        # Get the StoreOwner instance
+        try:
+            store_owner = StoreOwner.objects.get(id=user.id)
+        except StoreOwner.DoesNotExist:
+            raise serializers.ValidationError("فروشگاه یافت نشد")
 
         # Set store owner
         validated_data['store_owner'] = store_owner

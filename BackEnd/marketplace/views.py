@@ -358,10 +358,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        return Response({
-            'detail': 'Product created successfully',
-            'product': serializer.data
-        }, status=status.HTTP_201_CREATED)
+        return Response('موفقانه ایجاد شد.', status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
         """Set the store_owner to the current user"""

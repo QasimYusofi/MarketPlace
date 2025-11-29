@@ -3,7 +3,6 @@ from django_mongodb_backend.fields import ObjectIdAutoField
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import PermissionsMixin
 from django.core.validators import RegexValidator, MinLengthValidator, MaxLengthValidator, MinValueValidator
-from django.utils import timezone
 
 
 phone_validator = RegexValidator(
@@ -89,12 +88,7 @@ class BaseUser(AbstractBaseUser, PermissionsMixin):
     )
     birthday = models.DateField(null=True, blank=True)
 
-    # Profile image binary data + metadata (store in MongoDB as binary)
-    image_data = models.BinaryField(null=True, blank=True)
-    image_content_type = models.CharField(max_length=100, null=True, blank=True)
-    image_filename = models.CharField(max_length=255, null=True, blank=True)
-    image_size = models.IntegerField(null=True, blank=True)
-    image_uploaded_at = models.DateTimeField(null=True, blank=True)
+    image_url = models.URLField(null=True, blank=True)
 
     city = models.CharField(max_length=50, null=True, blank=True)
 
@@ -143,69 +137,27 @@ class BaseUser(AbstractBaseUser, PermissionsMixin):
         return f"{self.first_name} {self.last_name}".strip()
 
     def has_profile_image(self):
-        return bool(self.image_data)
+        return bool(self.image_url)
 
     def get_profile_image_info(self):
-        if not self.image_data:
+        if not self.image_url:
             return None
         return {
-            "filename": self.image_filename,
-            "contentType": self.image_content_type,
-            "size": self.image_size,
-            "uploadedAt": self.image_uploaded_at,
-            "hasData": True,
+            "url": self.image_url,
+            "hasUrl": True,
         }
 
-    def update_profile_image(self, file_data):
-        # file_data may be from DRF Upload: has .read(), .content_type, .name, .size
-        buffer = None
-        if hasattr(file_data, "read"):
-            content = file_data.read()
-            buffer = content
-            self.image_filename = getattr(file_data, "name", None)
-            self.image_content_type = getattr(file_data, "content_type", None)
-            self.image_size = len(content)
-        else:
-            # dict-like input similar to your Next.js shape
-            buffer = file_data.get("buffer") or file_data.get("data")
-            self.image_filename = file_data.get("originalname") or file_data.get("filename")
-            self.image_content_type = file_data.get("mimetype") or file_data.get("contentType")
-            self.image_size = file_data.get("size")
-
-        self.image_data = buffer
-        self.image_uploaded_at = timezone.now()
-        self.save(update_fields=[
-            "image_data",
-            "image_content_type",
-            "image_filename",
-            "image_size",
-            "image_uploaded_at",
-        ])
+    def update_profile_image(self, image_url):
+        """Update profile image with image URL"""
+        self.image_url = image_url
+        self.save(update_fields=["image_url"])
         return self
 
     def remove_profile_image(self):
-        self.image_data = None
-        self.image_content_type = None
-        self.image_filename = None
-        self.image_size = None
-        self.image_uploaded_at = None
-        self.save(update_fields=[
-            "image_data",
-            "image_content_type",
-            "image_filename",
-            "image_size",
-            "image_uploaded_at",
-        ])
+        """Remove profile image URL"""
+        self.image_url = None
+        self.save(update_fields=["image_url"])
         return self
-
-    def get_image_as_base64(self):
-        import base64
-
-        if not self.image_data:
-            return None
-        b64 = base64.b64encode(self.image_data).decode("utf-8")
-        ctype = self.image_content_type or "application/octet-stream"
-        return f"data:{ctype};base64,{b64}"
 
     def __str__(self):
         return self.full_name or self.phone
@@ -325,11 +277,7 @@ class StoreOwner(BaseUser):
     
     # Store Logo Image (separate from profile image)
 
-    store_logo_data = models.BinaryField(null=True, blank=True)
-    store_logo_content_type = models.CharField(max_length=100, null=True, blank=True)
-    store_logo_filename = models.CharField(max_length=255, null=True, blank=True)
-    store_logo_size = models.IntegerField(null=True, blank=True)
-    store_logo_uploaded_at = models.DateTimeField(null=True, blank=True)
+    store_logo_url = models.URLField(null=True, blank=True)
     
     # Store Details
     store_domain = models.CharField(
@@ -446,71 +394,28 @@ class StoreOwner(BaseUser):
     # Store Logo Methods
     def has_store_logo(self):
         """Check if store has a logo"""
-        return bool(self.store_logo_data)
-    
+        return bool(self.store_logo_url)
+
     def get_store_logo_info(self):
         """Get store logo metadata"""
-        if not self.store_logo_data:
+        if not self.store_logo_url:
             return None
         return {
-            "filename": self.store_logo_filename,
-            "contentType": self.store_logo_content_type,
-            "size": self.store_logo_size,
-            "uploadedAt": self.store_logo_uploaded_at,
-            "hasData": True,
+            "url": self.store_logo_url,
+            "hasUrl": True,
         }
-    
-    def update_store_logo(self, file_data):
-        """Update store logo with new image data"""
-        buffer = None
-        if hasattr(file_data, "read"):
-            content = file_data.read()
-            buffer = content
-            self.store_logo_filename = getattr(file_data, "name", None)
-            self.store_logo_content_type = getattr(file_data, "content_type", None)
-            self.store_logo_size = len(content)
-        else:
-            buffer = file_data.get("buffer") or file_data.get("data")
-            self.store_logo_filename = file_data.get("originalname") or file_data.get("filename")
-            self.store_logo_content_type = file_data.get("mimetype") or file_data.get("contentType")
-            self.store_logo_size = file_data.get("size")
-        
-        self.store_logo_data = buffer
-        self.store_logo_uploaded_at = timezone.now()
-        self.save(update_fields=[
-            "store_logo_data",
-            "store_logo_content_type",
-            "store_logo_filename",
-            "store_logo_size",
-            "store_logo_uploaded_at",
-        ])
+
+    def update_store_logo(self, logo_url):
+        """Update store logo with image URL"""
+        self.store_logo_url = logo_url
+        self.save(update_fields=["store_logo_url"])
         return self
-    
+
     def remove_store_logo(self):
-        """Remove store logo"""
-        self.store_logo_data = None
-        self.store_logo_content_type = None
-        self.store_logo_filename = None
-        self.store_logo_size = None
-        self.store_logo_uploaded_at = None
-        self.save(update_fields=[
-            "store_logo_data",
-            "store_logo_content_type",
-            "store_logo_filename",
-            "store_logo_size",
-            "store_logo_uploaded_at",
-        ])
+        """Remove store logo URL"""
+        self.store_logo_url = None
+        self.save(update_fields=["store_logo_url"])
         return self
-    
-    def get_store_logo_as_base64(self):
-        """Get store logo as base64 encoded string"""
-        import base64
-        
-        if not self.store_logo_data:
-            return None
-        b64 = base64.b64encode(self.store_logo_data).decode("utf-8")
-        ctype = self.store_logo_content_type or "application/octet-stream"
-        return f"data:{ctype};base64,{b64}"
     
     # Rating Methods
     def update_seller_rating(self, new_rating):
@@ -652,11 +557,11 @@ class Product(models.Model):
         help_text="برچسب‌های محصول"
     )
 
-    # Product Images (stored as JSON with embedded binary data)
-    images = models.JSONField(
+    # Product Images (stored as JSON list of URLs)
+    image_urls = models.JSONField(
         default=list,
         blank=True,
-        help_text="تصاویر محصول"
+        help_text="تصاویر محصول (لیست URLها)"
     )
 
     # Status
@@ -733,50 +638,55 @@ class Product(models.Model):
         return 0
 
     # Product Image Methods
-    def add_image(self, image_data):
-        """Add an image to the product"""
-        if not isinstance(self.images, list):
-            self.images = []
+    def add_image_url(self, image_url):
+        """Add an image URL to the product"""
+        if not isinstance(self.image_urls, list):
+            self.image_urls = []
 
         # Create image object
         image_obj = {
-            'data': image_data.get('data') or image_data.get('buffer'),
-            'contentType': image_data.get('contentType') or image_data.get('mimetype'),
-            'filename': image_data.get('filename') or image_data.get('originalname'),
-            'size': image_data.get('size'),
-            'isPrimary': len(self.images) == 0,  # First image is primary by default
+            'url': image_url,
+            'isPrimary': len(self.image_urls) == 0,  # First image is primary by default
         }
-        image_obj['uploadedAt'] = timezone.now()
 
-        self.images.append(image_obj)
+        self.image_urls.append(image_obj)
+        self.save(update_fields=["image_urls"])  # Save after adding
         return image_obj
 
-    def remove_image(self, index):
-        """Remove an image by index"""
-        if isinstance(self.images, list) and 0 <= index < len(self.images):
-            removed_image = self.images.pop(index)
+    def remove_image_url(self, index):
+        """Remove an image URL by index"""
+        if isinstance(self.image_urls, list) and 0 <= index < len(self.image_urls):
+            removed_image = self.image_urls.pop(index)
             # If we removed the primary image, make the first remaining image primary
-            if removed_image.get('isPrimary') and self.images:
-                self.images[0]['isPrimary'] = True
+            if removed_image.get('isPrimary') and self.image_urls:
+                self.image_urls[0]['isPrimary'] = True
+                self.save(update_fields=["image_urls"])
             return removed_image
         return None
 
-    def get_primary_image(self):
-        """Get the primary image"""
-        if isinstance(self.images, list):
-            for image in self.images:
+    def get_primary_image_url(self):
+        """Get the primary image URL"""
+        if isinstance(self.image_urls, list):
+            for image in self.image_urls:
                 if image.get('isPrimary'):
-                    return image
+                    return image.get('url')
         return None
 
-    def set_primary_image(self, index):
+    def get_all_image_urls(self):
+        """Get all image URLs"""
+        if isinstance(self.image_urls, list):
+            return [img.get('url') for img in self.image_urls if img.get('url')]
+        return []
+
+    def set_primary_image_url(self, index):
         """Set an image as primary by index"""
-        if isinstance(self.images, list) and 0 <= index < len(self.images):
+        if isinstance(self.image_urls, list) and 0 <= index < len(self.image_urls):
             # Reset all images to non-primary
-            for img in self.images:
+            for img in self.image_urls:
                 img['isPrimary'] = False
             # Set the specified image as primary
-            self.images[index]['isPrimary'] = True
+            self.image_urls[index]['isPrimary'] = True
+            self.save(update_fields=["image_urls"])
             return True
         return False
 

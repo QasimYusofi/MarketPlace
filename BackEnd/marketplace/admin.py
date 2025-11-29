@@ -16,7 +16,7 @@ class CustomerAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {'fields': ('phone', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name', 'email', 'city', 'post_code', 'birthday')}),
-        ('Profile image', {'fields': ('image_filename', 'image_content_type', 'image_size', 'image_uploaded_at')}),
+        ('Profile image', {'fields': ('image_url',)}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Status', {'fields': ('status', 'is_verified', 'last_login', 'created_at', 'updated_at')}),
     )
@@ -28,7 +28,7 @@ class CustomerAdmin(BaseUserAdmin):
         }),
     )
 
-    readonly_fields = ('last_login', 'created_at', 'updated_at', 'image_uploaded_at')
+    readonly_fields = ('last_login', 'created_at', 'updated_at')
 
 
 @admin.register(StoreOwner)
@@ -52,7 +52,7 @@ class StoreOwnerAdmin(BaseUserAdmin):
             )
         }),
         ('Profile image', {
-            'fields': ('image_filename', 'image_content_type', 'image_size', 'image_uploaded_at')
+            'fields': ('image_url',)
         }),
         ('Store info', {
             'fields': (
@@ -62,10 +62,7 @@ class StoreOwnerAdmin(BaseUserAdmin):
             )
         }),
         ('Store logo', {
-            'fields': (
-                'store_logo_filename', 'store_logo_content_type', 
-                'store_logo_size', 'store_logo_uploaded_at'
-            )
+            'fields': ('store_logo_url',)
         }),
         ('Statistics', {
             'fields': ('active_products_count', 'total_sales', 'total_revenue')
@@ -91,7 +88,6 @@ class StoreOwnerAdmin(BaseUserAdmin):
     )
 
     readonly_fields = (
-        'last_login', 'seller_join_date', 'created_at', 'updated_at', 
-        'image_uploaded_at', 'store_logo_uploaded_at',
+        'last_login', 'seller_join_date', 'created_at', 'updated_at',
         'active_products_count', 'total_sales', 'total_revenue'
     )

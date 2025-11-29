@@ -107,7 +107,7 @@ then get the access token
     "category": "men",
     "sizes": ["S", "M", "L", "XL"],
     "colors": ["مشکی", "سفید", "خاکستری"],
-    "tags": ["تیشرت", "مردانه", "تمام‌پنبه"]
+    "tags": ["تیشرت", "مردانه", "تمام‌ پنبه"]
   }
 
 ## Add Image to Product:
