@@ -1,0 +1,21 @@
+{
+  "site": {
+    "name": "آوینا",
+    "description": "پل مد ایران - جدیدترین trends مد و فشن",
+    "logo": "/logo.png",
+    "favicon": "/favicon.ico",
+    "url": "https://avina.ir"
+  },
+  "contact": {
+    "address": "تهران، ولنجک، کوی دانشجو، دانشکده مهندسی و علوم کامیپوتر، دانشگاه شهید بهشتی",
+    "phone": "09926067519",
+    "email": "info@avina.ir",
+    "workingHours": "شنبه تا چهارشنبه: ۹ صبح تا ۶ عصر | پنجشنبه: ۹ صبح تا ۱ بعدازظهر"
+  },
+  "features": {
+    "freeShipping": true,
+    "securePayment": true,
+    "moneyBack": true,
+    "support247": false
+  }
+}

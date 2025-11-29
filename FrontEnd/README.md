@@ -37,8 +37,9 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## Installing Version NEXT JS
 
- ### npx create-next-app@latest  
- Need to install the following packages:
+### npx create-next-app@latest
+
+Need to install the following packages:
 create-next-app@16.0.1
 Ok to proceed? (y)
 
@@ -57,3 +58,5 @@ Ok to proceed? (y)
 
     - npm install react-icons react-hot-toast
     - npm install axios react-hot-toast
+    - npm install lucide-react   // for more Icons
+    - npm install react-hook-form  // for file

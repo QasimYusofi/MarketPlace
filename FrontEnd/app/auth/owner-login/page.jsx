@@ -106,7 +106,6 @@ export default function Login() {
         // Store token and Owner data
         if (response.data.access) {
           localStorage.setItem("accessToken", response.data.access);
-          localStorage.setItem("phone", cleanPhone);
         }
         // Update last login
         const redirectData = localStorage.getItem("redirectAfterLogin");
@@ -185,7 +184,7 @@ export default function Login() {
       />
 
       <div
-        className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8 font-vazirmatn"
+        className="min-h-screen bg-gray-50 flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8 font-vazirmatn"
         dir="rtl"
       >
         <div className="max-w-lg w-full">

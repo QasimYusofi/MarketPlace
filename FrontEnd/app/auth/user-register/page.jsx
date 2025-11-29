@@ -145,7 +145,7 @@ export default function CustomerRegister() {
       last_name: formData.lastName,
       phone: formData.phone,
       password: formData.password,
-      email: `user${Date.now()}@example.com`, // Dummy email
+      // email: `user${Date.now()}@example.com`, // Dummy email
     };
 
     try {
@@ -174,7 +174,6 @@ export default function CustomerRegister() {
             },
           }
         );
-
 
         // Reset form
         setFormData({
@@ -248,7 +247,7 @@ export default function CustomerRegister() {
       />
 
       <div
-        className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-vazirmatn"
+        className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-vazirmatn"
         dir="rtl"
       >
         <div className="max-w-xl w-full">
