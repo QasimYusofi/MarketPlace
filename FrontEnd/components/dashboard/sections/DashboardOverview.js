@@ -88,6 +88,7 @@ export default function DashboardOverview() {
     revenue: 0,
   });
   const [recentOrders, setRecentOrders] = useState([]);
+  const [recentProducts, setRecentProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [profileImagePreview, setProfileImagePreview] = useState(null);
 
@@ -127,40 +128,45 @@ export default function DashboardOverview() {
       // Fetch products for the user's store
       if (user && token) {
         try {
-          // Try to fetch products from your API
-          const productsResponse = await fetch(`${BASE_API}/products/`, {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          });
+          // Fetch store owner's products
+          const productsResponse = await fetch(
+            `${BASE_API}/products/my-products/`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
 
           if (productsResponse.ok) {
             const productsResult = await productsResponse.json();
-            console.log("📦 Products data:", productsResult);
+            console.log("📦 My products data:", productsResult);
 
             // Handle different response formats
+            let productsData = [];
             if (Array.isArray(productsResult)) {
-              productsCount = productsResult.length;
-              // Calculate total value of products in stock
-              totalRevenue = productsResult.reduce((sum, product) => {
-                return (
-                  sum +
-                  (parseFloat(product.price) || 0) *
-                    (product.stock_quantity || 0)
-                );
-              }, 0);
+              productsData = productsResult;
             } else if (productsResult.results) {
-              productsCount = productsResult.results.length;
-              totalRevenue = productsResult.results.reduce((sum, product) => {
-                return (
-                  sum +
-                  (parseFloat(product.price) || 0) *
-                    (product.stock_quantity || 0)
-                );
-              }, 0);
+              productsData = productsResult.results;
+            } else if (productsResult.data) {
+              productsData = productsResult.data;
             }
+
+            productsCount = productsData.length;
+
+            // Calculate total value of products in stock
+            totalRevenue = productsData.reduce((sum, product) => {
+              return (
+                sum +
+                (parseFloat(product.price) || 0) *
+                  (product.stock || product.stock_quantity || 0)
+              );
+            }, 0);
+
+            // Set recent products for display
+            setRecentProducts(productsData.slice(0, 3));
           }
         } catch (error) {
           console.error("Error fetching products:", error);
@@ -182,17 +188,17 @@ export default function DashboardOverview() {
             const ordersResult = await ordersResponse.json();
             console.log("📦 Orders data:", ordersResult);
 
+            let ordersData = [];
             if (Array.isArray(ordersResult)) {
-              ordersCount = ordersResult.length;
-              setRecentOrders(ordersResult.slice(0, 5));
+              ordersData = ordersResult;
             } else if (ordersResult.results) {
-              ordersCount = ordersResult.results.length;
-              setRecentOrders(ordersResult.results.slice(0, 5));
-            } else {
-              // Use store owner's total sales if orders API doesn't return array
-              ordersCount = user.total_sales || 0;
-              setRecentOrders(generateMockOrders(ordersCount));
+              ordersData = ordersResult.results;
+            } else if (ordersResult.data) {
+              ordersData = ordersResult.data;
             }
+
+            ordersCount = ordersData.length;
+            setRecentOrders(ordersData.slice(0, 5));
           } else {
             // Use store owner's total sales if orders API fails
             ordersCount = user.total_sales || 0;
@@ -203,6 +209,36 @@ export default function DashboardOverview() {
           // Use store owner's total sales and generate mock orders
           ordersCount = user.total_sales || 0;
           setRecentOrders(generateMockOrders(ordersCount));
+        }
+
+        // Fetch store statistics
+        try {
+          const statsResponse = await fetch(
+            `${BASE_API}/store-owners/me/statistics/`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          if (statsResponse.ok) {
+            const statsData = await statsResponse.json();
+            console.log("📊 Store statistics:", statsData);
+
+            // Update stats with API data if available
+            if (statsData) {
+              productsCount = statsData.active_products_count || productsCount;
+              ordersCount = statsData.total_sales || ordersCount;
+              totalRevenue = parseFloat(
+                statsData.total_revenue || totalRevenue
+              );
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching statistics:", error);
         }
       }
 
@@ -255,6 +291,11 @@ export default function DashboardOverview() {
         const base64 = imageInfo.data;
         const contentType = imageInfo.content_type || "image/jpeg";
         return `data:${contentType};base64,${base64}`;
+      }
+
+      // If it's a simple image field
+      if (typeof imageInfo === "string" && imageInfo.startsWith("http")) {
+        return imageInfo;
       }
 
       console.warn("🖼️ Unknown image info format:", imageInfo);
@@ -386,6 +427,11 @@ export default function DashboardOverview() {
         color: "bg-purple-100 text-purple-800 border-purple-200",
         icon: CreditCard,
       },
+      completed: {
+        label: "تکمیل شده",
+        color: "bg-green-100 text-green-800 border-green-200",
+        icon: CheckCircle,
+      },
     };
 
     const config = statusConfig[status] || statusConfig.pending;
@@ -424,6 +470,53 @@ export default function DashboardOverview() {
     );
   };
 
+  const ProductItem = ({ product }) => {
+    const productImage =
+      product.images && product.images.length > 0
+        ? getImageUrl(product.images[0])
+        : "/api/placeholder/80/80";
+
+    return (
+      <div className="flex items-center space-x-4 space-x-reverse p-4 bg-white rounded-xl border border-gray-200 hover:border-blue-300 transition-all duration-300 group">
+        <div className="w-16 h-16 bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden">
+          <img
+            src={productImage}
+            alt={product.title}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.style.display = "none";
+              e.target.nextSibling.style.display = "flex";
+            }}
+          />
+          <div className="hidden w-full h-full items-center justify-center">
+            <Package className="w-6 h-6 text-gray-400" />
+          </div>
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-gray-900 text-sm line-clamp-1">
+            {product.title}
+          </p>
+          <p className="text-green-600 font-bold text-sm" dir="ltr">
+            {parseInt(product.price || 0).toLocaleString()} ریال
+          </p>
+          <div className="flex items-center space-x-2 space-x-reverse mt-1">
+            <span
+              className={`text-xs px-2 py-1 rounded-full ${
+                (product.stock || product.stock_quantity) > 10
+                  ? "bg-green-100 text-green-700"
+                  : (product.stock || product.stock_quantity) > 0
+                  ? "bg-yellow-100 text-yellow-700"
+                  : "bg-red-100 text-red-700"
+              }`}
+            >
+              موجودی: {product.stock || product.stock_quantity || 0}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Get user display name
   const getUserDisplayName = () => {
     if (!user) return "کاربر";
@@ -451,6 +544,12 @@ export default function DashboardOverview() {
   const getStoreRating = () => {
     if (!user?.store_rating) return { average: 0, count: 0 };
     return user.store_rating;
+  };
+
+  // Refresh dashboard data
+  const handleRefresh = () => {
+    fetchDashboardData();
+    toast.success("داده‌ها به‌روزرسانی شد");
   };
 
   if (isLoading || userLoading) {
@@ -505,7 +604,7 @@ export default function DashboardOverview() {
               </div>
             </div>
           </div>
-          <div className="hidden lg:block">
+          <div className="hidden lg:flex items-center space-x-4 space-x-reverse">
             <div className="relative">
               <div className="w-28 h-28 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white border-opacity-30 shadow-2xl">
                 {profileImagePreview ? (
@@ -526,6 +625,13 @@ export default function DashboardOverview() {
                 <CheckCircle className="text-white text-sm" />
               </div>
             </div>
+            <button
+              onClick={handleRefresh}
+              className="bg-white/20 hover:bg-white/30 p-3 rounded-2xl transition-all duration-300 backdrop-blur-sm border border-white/30"
+              title="بروزرسانی داده‌ها"
+            >
+              <RefreshCw className="w-6 h-6 text-white" />
+            </button>
           </div>
         </div>
       </div>
@@ -574,17 +680,17 @@ export default function DashboardOverview() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <QuickAction
-              title="مدیریت فروشگاه"
-              description="فروشگاه خود را مدیریت کنید"
-              icon={<Store className="text-blue-600" />}
-              onClick={() => router.push("/dashboard/stores")}
+              title="مدیریت محصولات"
+              description="محصولات خود را مدیریت کنید"
+              icon={<Package className="text-blue-600" />}
+              onClick={() => router.push("/dashboard/products")}
               color="blue"
             />
             <QuickAction
               title="افزودن محصول"
               description="محصول جدید به فروشگاه اضافه کنید"
               icon={<Plus className="text-green-600" />}
-              onClick={() => router.push("/dashboard/products")}
+              onClick={() => router.push("/dashboard/products/new")}
               color="green"
             />
             <QuickAction
@@ -604,6 +710,50 @@ export default function DashboardOverview() {
           </div>
         </div>
 
+        {/* Recent Products */}
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center">
+              <Package className="ml-2 text-green-500" />
+              محصولات اخیر
+            </h2>
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <Clock size={16} />
+              <span>آخرین محصولات</span>
+            </div>
+          </div>
+          {recentProducts.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Package className="text-gray-400 text-2xl" />
+              </div>
+              <p className="text-gray-500 mb-2">هنوز محصولی اضافه نکرده‌اید.</p>
+              <button
+                onClick={() => router.push("/dashboard/products/new")}
+                className="text-blue-600 hover:text-blue-800 font-medium flex items-center justify-center mx-auto"
+              >
+                <Plus className="ml-1" />
+                افزودن اولین محصول
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentProducts.map((product) => (
+                <ProductItem key={product.id} product={product} />
+              ))}
+              <button
+                onClick={() => router.push("/dashboard/products")}
+                className="w-full mt-4 py-3 text-center text-blue-600 hover:text-blue-800 font-semibold border border-gray-200 rounded-xl hover:border-blue-300 transition-colors flex items-center justify-center group"
+              >
+                مشاهده همه محصولات
+                <ArrowRight className="mr-2 transform group-hover:translate-x-1 transition-transform" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Orders */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-6">
@@ -627,13 +777,6 @@ export default function DashboardOverview() {
               <p className="text-gray-400 text-sm mb-4">
                 با ثبت اولین سفارش، اطلاعات اینجا نمایش داده می‌شود
               </p>
-              <button
-                onClick={() => router.push("/dashboard/products")}
-                className="text-blue-600 hover:text-blue-800 font-medium flex items-center justify-center mx-auto"
-              >
-                <ShoppingCart className="ml-1" />
-                مشاهده محصولات
-              </button>
             </div>
           ) : (
             <div className="space-y-4">
@@ -681,80 +824,6 @@ export default function DashboardOverview() {
               <ArrowRight className="mr-2 transform group-hover:translate-x-1 transition-transform" />
             </button>
           )}
-        </div>
-      </div>
-
-      {/* Recent Activity & Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Recent Activity */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center">
-              <Activity className="ml-2 text-green-500" />
-              فعالیت‌های اخیر
-            </h2>
-            <BarChart3 className="text-gray-400" />
-          </div>
-          <div className="space-y-4">
-            <ActivityItem
-              icon={<Store className="text-white" />}
-              title={
-                stats.stores > 0
-                  ? `شما ${stats.stores} فروشگاه فعال دارید`
-                  : "هنوز فروشگاهی ایجاد نکرده‌اید"
-              }
-              description={
-                stats.stores > 0
-                  ? user?.store_name
-                    ? `فروشگاه "${user.store_name}" در حال فعالیت است`
-                    : "فروشگاه شما در حال فعالیت است"
-                  : "برای شروع، اطلاعات فروشگاه خود را تکمیل کنید"
-              }
-              color="blue"
-            />
-            <ActivityItem
-              icon={<Package className="text-white" />}
-              title={
-                stats.products > 0
-                  ? `تعداد ${stats.products} محصول در فروشگاه شما موجود است`
-                  : "هنوز محصولی اضافه نکرده‌اید"
-              }
-              description={
-                stats.products > 0
-                  ? "محصولات شما آماده فروش هستند"
-                  : "محصولات خود را اضافه کنید و فروش را شروع کنید"
-              }
-              color="green"
-            />
-            <ActivityItem
-              icon={<ShoppingBag className="text-white" />}
-              title={
-                stats.orders > 0
-                  ? `تاکنون ${stats.orders} فروش ثبت کرده‌اید`
-                  : "هنوز فروشی ثبت نکرده‌اید"
-              }
-              description={
-                stats.orders > 0
-                  ? "فروش‌های شما در حال پردازش هستند"
-                  : "پس از اولین فروش، اطلاعات اینجا نمایش داده می‌شود"
-              }
-              color="purple"
-            />
-            <ActivityItem
-              icon={<DollarSign className="text-white" />}
-              title={
-                stats.revenue > 0
-                  ? `درآمد کل: ${stats.revenue.toLocaleString()} ریال`
-                  : "هنوز درآمدی ثبت نکرده‌اید"
-              }
-              description={
-                stats.revenue > 0
-                  ? "درآمد مجموع فروشگاه شما"
-                  : "با فروش محصولات، درآمد خود را افزایش دهید"
-              }
-              color="orange"
-            />
-          </div>
         </div>
 
         {/* Performance Metrics */}

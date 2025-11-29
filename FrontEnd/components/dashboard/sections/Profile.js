@@ -23,9 +23,6 @@ import {
   Home,
   Navigation,
   X,
-  Star,
-  ShoppingBag,
-  DollarSign,
 } from "lucide-react";
 
 // لیست استان‌های ایران
@@ -96,14 +93,23 @@ export default function Profile() {
     }
   }, [activeTab, user]);
 
+  const getAuthToken = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("accessToken");
+    }
+    return null;
+  };
+
   const fetchUserData = async () => {
     try {
-      const token = localStorage.getItem("accessToken");
+      const token = getAuthToken();
       if (!token) {
-        toast.error("لطفا ابتدا وارد شوید");
+        console.error("No authentication token found");
+        setIsLoading(false);
         return;
       }
 
+      console.log("🔄 Fetching store owner data...");
       const response = await fetch(`${BASE_API}/store-owners/me/`, {
         method: "GET",
         headers: {
@@ -116,12 +122,12 @@ export default function Profile() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result = await response.json();
-      console.log("📦 Store owner data:", result);
+      const userData = await response.json();
+      console.log("✅ Store owner data:", userData);
 
-      setUser(result);
-      resetFormWithUserData(result);
-      updateImagePreviews(result);
+      setUser(userData);
+      resetFormWithUserData(userData);
+      updateImagePreviews(userData);
     } catch (error) {
       console.error("💥 Error fetching user:", error);
       toast.error("خطا در دریافت اطلاعات کاربر");
@@ -136,8 +142,8 @@ export default function Profile() {
 
     console.log("🖼️ Updating image previews...");
 
-    // Profile image
-    if (data.profile_image_info) {
+    // Profile image - using has_profile_image and profile_image_info
+    if (data.has_profile_image && data.profile_image_info) {
       const profileUrl = getImageUrl(data.profile_image_info);
       console.log("🖼️ Profile image URL:", profileUrl ? "Generated" : "Null");
       setProfileImagePreview(profileUrl);
@@ -145,8 +151,8 @@ export default function Profile() {
       setProfileImagePreview(null);
     }
 
-    // Store logo
-    if (data.store_logo_info) {
+    // Store logo - using has_store_logo and store_logo_info
+    if (data.has_store_logo && data.store_logo_info) {
       const logoUrl = getImageUrl(data.store_logo_info);
       console.log("🖼️ Store logo URL:", logoUrl ? "Generated" : "Null");
       setStoreLogoPreview(logoUrl);
@@ -155,42 +161,12 @@ export default function Profile() {
     }
   };
 
-  // Updated getImageUrl function for Django API
-  const getImageUrl = (imageInfo) => {
-    if (!imageInfo) {
-      console.log("🖼️ No image info provided");
-      return null;
-    }
-
-    try {
-      console.log("🖼️ Processing image info:", imageInfo);
-
-      // If image URL is provided directly
-      if (imageInfo.url) {
-        return imageInfo.url;
-      }
-
-      // If we have base64 data
-      if (imageInfo.data) {
-        const base64 = imageInfo.data;
-        const contentType = imageInfo.content_type || "image/jpeg";
-        return `data:${contentType};base64,${base64}`;
-      }
-
-      console.warn("🖼️ Unknown image info format:", imageInfo);
-      return null;
-    } catch (error) {
-      console.error("❌ Error creating image URL:", error);
-      return null;
-    }
-  };
-
   const resetFormWithUserData = (userData = null) => {
     const data = userData || user;
     if (!data) return;
 
     const formData = {
-      // Personal Information - using actual API field names
+      // Personal Information - using your exact API field names
       first_name: data.first_name || "",
       last_name: data.last_name || "",
       phone: data.phone || "",
@@ -200,8 +176,11 @@ export default function Profile() {
       seller_license_id: data.seller_license_id || "",
       post_code: data.post_code || "",
       city: data.city || "",
+      birthday: data.birthday
+        ? new Date(data.birthday).toISOString().split("T")[0]
+        : "",
 
-      // Store Information - using actual API field names
+      // Store Information
       store_name: data.store_name || "",
       store_description: data.store_description || "",
       store_domain: data.store_domain || "",
@@ -214,7 +193,49 @@ export default function Profile() {
     reset(formData);
   };
 
-  const onSubmit = async (data) => {
+  // Improved getImageUrl function for Django API
+  const getImageUrl = (imageInfo) => {
+    if (!imageInfo) {
+      console.log("🖼️ No image info provided");
+      return null;
+    }
+
+    try {
+      console.log("🖼️ Processing image info:", imageInfo);
+
+      // If image URL is provided directly by Django
+      if (imageInfo.url) {
+        // Handle relative URLs by prepending base API URL if needed
+        if (imageInfo.url.startsWith("/")) {
+          return `${BASE_API}${imageInfo.url}`;
+        }
+        return imageInfo.url;
+      }
+
+      // If we have filename and using Django media URLs
+      if (imageInfo.filename) {
+        return `${BASE_API}${imageInfo.filename}`;
+      }
+
+      // If it's a simple image field URL
+      if (typeof imageInfo === "string" && imageInfo.startsWith("http")) {
+        return imageInfo;
+      }
+
+      // If it's a base64 data URL
+      if (typeof imageInfo === "string" && imageInfo.startsWith("data:")) {
+        return imageInfo;
+      }
+
+      console.warn("🖼️ Unknown image info format:", imageInfo);
+      return null;
+    } catch (error) {
+      console.error("❌ Error creating image URL:", error);
+      return null;
+    }
+  };
+
+  const onSubmit = async (formData) => {
     const isValid = await trigger();
     if (!isValid) {
       toast.error("لطفا اطلاعات فرم را به درستی تکمیل کنید");
@@ -223,41 +244,57 @@ export default function Profile() {
 
     setIsUpdating(true);
     try {
-      const token = localStorage.getItem("accessToken");
-      const updateData =
-        activeTab === "personal"
-          ? {
-              first_name: data.first_name,
-              last_name: data.last_name,
-              phone: data.phone,
-              email: data.email,
-              seller_address: data.seller_address,
-              seller_bio: data.seller_bio,
-              seller_license_id: data.seller_license_id,
-              post_code: data.post_code,
-              city: data.city,
-            }
-          : {
-              store_name: data.store_name,
-              store_description: data.store_description,
-              store_domain: data.store_domain,
-              store_type: data.store_type,
-              store_established_at: data.store_established_at || null,
-            };
+      const token = getAuthToken();
+      if (!token) {
+        toast.error("لطفا ابتدا وارد شوید");
+        return;
+      }
 
-      console.log("🔄 Updating store owner data:", updateData);
+      console.log("🔄 Updating user data:", formData);
+
+      // Prepare data for Django API - using exact field names from your API
+      const updateData = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        email: formData.email,
+        seller_address: formData.seller_address,
+        seller_bio: formData.seller_bio,
+        seller_license_id: formData.seller_license_id,
+        post_code: formData.post_code,
+        city: formData.city,
+        birthday: formData.birthday,
+        store_name: formData.store_name,
+        store_description: formData.store_description,
+        store_domain: formData.store_domain,
+        store_type: formData.store_type,
+        store_established_at: formData.store_established_at,
+      };
+
+      // Remove empty values
+      Object.keys(updateData).forEach((key) => {
+        if (
+          updateData[key] === null ||
+          updateData[key] === undefined ||
+          updateData[key] === ""
+        ) {
+          delete updateData[key];
+        }
+      });
 
       const response = await fetch(`${BASE_API}/store-owners/me/`, {
         method: "PATCH",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(updateData),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(
+          errorData.detail || `HTTP error! status: ${response.status}`
+        );
       }
 
       const result = await response.json();
@@ -268,7 +305,7 @@ export default function Profile() {
       toast.success("✅ پروفایل با موفقیت به‌روزرسانی شد");
     } catch (error) {
       console.error("💥 Update error:", error);
-      toast.error("خطا در به‌روزرسانی پروفایل");
+      toast.error(error.message || "خطا در به‌روزرسانی پروفایل");
     } finally {
       setIsUpdating(false);
     }
@@ -277,6 +314,13 @@ export default function Profile() {
   const handleImageUpload = async (event, imageType = "profile") => {
     const file = event.target.files[0];
     if (!file) return;
+
+    console.log("📁 Selected file:", {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      imageType: imageType,
+    });
 
     // Client-side validation
     if (file.size > 5 * 1024 * 1024) {
@@ -301,42 +345,61 @@ export default function Profile() {
     setUploadingImageType(imageType);
 
     try {
-      const token = localStorage.getItem("accessToken");
-      const formData = new FormData();
-      formData.append("image", file);
-      formData.append("image_type", imageType);
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error("لطفا ابتدا وارد شوید");
+      }
 
-      const response = await fetch(
-        `${BASE_API}/store-owners/me/upload-image/`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
-      );
+      const formData = new FormData();
+      formData.append(imageType === "profile" ? "profile_image" : "logo", file);
+
+      console.log("🔄 Starting image upload...");
+
+      const endpoint =
+        imageType === "profile"
+          ? `${BASE_API}/store-owners/me/upload-profile-image/`
+          : `${BASE_API}/store-owners/me/upload-store-logo/`;
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      console.log("📡 Upload response status:", response.status);
 
       if (!response.ok) {
-        throw new Error(`Upload failed with status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(
+          errorData.detail || `Upload failed with status: ${response.status}`
+        );
       }
 
       const result = await response.json();
+      console.log("📦 Upload result:", result);
 
-      if (result) {
-        setUser(result);
-        toast.success(
-          `✅ ${
-            imageType === "profile" ? "تصویر پروفایل" : "لوگوی فروشگاه"
-          } با موفقیت آپلود شد`
-        );
-        await fetchUserData();
+      // Update user state with new data
+      setUser(result);
+
+      // Update previews with the actual saved image
+      if (imageType === "profile") {
+        const newProfileUrl = getImageUrl(result.profile_image_info);
+        setProfileImagePreview(newProfileUrl);
       } else {
-        throw new Error("Upload failed");
+        const newLogoUrl = getImageUrl(result.store_logo_info);
+        setStoreLogoPreview(newLogoUrl);
       }
+
+      toast.success(
+        `✅ ${
+          imageType === "profile" ? "تصویر پروفایل" : "لوگوی فروشگاه"
+        } با موفقیت آپلود شد`
+      );
     } catch (error) {
       console.error("💥 Upload error:", error);
-      toast.error("خطا در آپلود تصویر");
+      toast.error(`خطا در آپلود: ${error.message}`);
 
       // Revert preview on error
       if (imageType === "profile") {
@@ -367,41 +430,49 @@ export default function Profile() {
     }
 
     try {
-      const token = localStorage.getItem("accessToken");
-      const response = await fetch(
-        `${BASE_API}/store-owners/me/remove-image/`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ image_type: imageType }),
-        }
-      );
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error("لطفا ابتدا وارد شوید");
+      }
+
+      const endpoint =
+        imageType === "profile"
+          ? `${BASE_API}/store-owners/me/remove-profile-image/`
+          : `${BASE_API}/store-owners/me/remove-store-logo/`;
+
+      const response = await fetch(endpoint, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
       if (!response.ok) {
-        throw new Error(`Remove failed with status: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(
+          errorData.detail || `Delete failed with status: ${response.status}`
+        );
       }
 
       const result = await response.json();
+      console.log("✅ Remove image result:", result);
 
-      if (result) {
-        setUser(result);
-        if (imageType === "profile") {
-          setProfileImagePreview(null);
-        } else {
-          setStoreLogoPreview(null);
-        }
-        toast.success(
-          `✅ ${
-            imageType === "profile" ? "تصویر پروفایل" : "لوگوی فروشگاه"
-          } با موفقیت حذف شد`
-        );
+      setUser(result);
+      if (imageType === "profile") {
+        setProfileImagePreview(null);
+      } else {
+        setStoreLogoPreview(null);
       }
+
+      toast.success(
+        `✅ ${
+          imageType === "profile" ? "تصویر پروفایل" : "لوگوی فروشگاه"
+        } با موفقیت حذف شد`
+      );
     } catch (error) {
       console.error("💥 Remove image error:", error);
-      toast.error("خطا در حذف تصویر");
+      toast.error(error.message || "خطا در حذف تصویر");
     }
   };
 
@@ -423,14 +494,6 @@ export default function Profile() {
       user.full_name ||
       "کاربر"
     );
-  };
-
-  // Get store rating display
-  const getStoreRating = () => {
-    if (!user?.store_rating) return "بدون امتیاز";
-    return `${user.store_rating.average || 0} (${
-      user.store_rating.count || 0
-    } نظر)`;
   };
 
   if (isLoading) {
@@ -487,11 +550,17 @@ export default function Profile() {
                       onError={(e) => {
                         console.error("❌ Profile image failed to load");
                         e.target.style.display = "none";
+                        e.target.nextSibling.style.display = "flex";
                       }}
                     />
-                  ) : (
+                  ) : null}
+                  <div
+                    className={`w-full h-full items-center justify-center ${
+                      profileImagePreview ? "hidden" : "flex"
+                    }`}
+                  >
                     <User className="w-16 h-16 text-white" />
-                  )}
+                  </div>
                 </div>
 
                 {/* Upload/Remove Buttons */}
@@ -564,19 +633,6 @@ export default function Profile() {
                 </div>
                 <div className="text-xs text-gray-500">فروش کل</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
-                  {user.total_revenue || "0"}
-                </div>
-                <div className="text-xs text-gray-500">درآمد (ریال)</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-600 flex items-center justify-center">
-                  <Star className="w-4 h-4 ml-1 fill-current" />
-                  {user.store_rating?.average || 0}
-                </div>
-                <div className="text-xs text-gray-500">امتیاز فروشگاه</div>
-              </div>
             </div>
           </div>
 
@@ -603,12 +659,6 @@ export default function Profile() {
                   {user.store_type === "multi-vendor"
                     ? "چند فروشنده"
                     : "تک فروشنده"}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">امتیاز:</span>
-                <span className="text-sm text-gray-900">
-                  {getStoreRating()}
                 </span>
               </div>
               <div className="flex justify-between items-center">
@@ -672,11 +722,17 @@ export default function Profile() {
                             onError={(e) => {
                               console.error("❌ Store logo failed to load");
                               e.target.style.display = "none";
+                              e.target.nextSibling.style.display = "flex";
                             }}
                           />
-                        ) : (
+                        ) : null}
+                        <div
+                          className={`w-full h-full items-center justify-center ${
+                            storeLogoPreview ? "hidden" : "flex"
+                          }`}
+                        >
                           <Store className="w-8 h-8 text-gray-400" />
-                        )}
+                        </div>
                       </div>
                       <div className="flex-1">
                         {isEditing ? (
@@ -768,21 +824,6 @@ export default function Profile() {
                     </select>
                   </div>
 
-                  {/* Store Domain */}
-                  <div className="space-y-2">
-                    <label className="flex items-center text-sm font-medium text-gray-700">
-                      <Navigation className="w-4 h-4 ml-2 text-gray-500" />
-                      دامنه فروشگاه
-                    </label>
-                    <input
-                      type="text"
-                      {...register("store_domain")}
-                      disabled={!isEditing}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all duration-200"
-                      placeholder="example.com"
-                    />
-                  </div>
-
                   {/* Store Established At */}
                   <div className="space-y-2">
                     <label className="flex items-center text-sm font-medium text-gray-700">
@@ -860,25 +901,17 @@ export default function Profile() {
                   <div className="space-y-2">
                     <label className="flex items-center text-sm font-medium text-gray-700">
                       <Phone className="w-4 h-4 ml-2 text-gray-500" />
-                      شماره تماس *
+                      شماره تماس
                     </label>
                     <input
                       type="tel"
-                      {...register("phone", {
-                        required: "شماره تماس الزامی است",
-                        pattern: {
-                          value: /^09\d{9}$/,
-                          message: "شماره تماس معتبر نیست",
-                        },
-                      })}
-                      disabled={!isEditing}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all duration-200"
+                      value={user.phone || ""}
+                      disabled
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-500"
                     />
-                    {errors.phone && (
-                      <p className="text-red-500 text-sm">
-                        {errors.phone.message}
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-500">
+                      شماره تماس قابل تغییر نیست
+                    </p>
                   </div>
 
                   {/* Email */}
@@ -919,40 +952,15 @@ export default function Profile() {
                     />
                   </div>
 
-                  {/* Postal Code */}
+                  {/* Birthday */}
                   <div className="space-y-2">
                     <label className="flex items-center text-sm font-medium text-gray-700">
-                      <Navigation className="w-4 h-4 ml-2 text-gray-500" />
-                      کد پستی
+                      <Calendar className="w-4 h-4 ml-2 text-gray-500" />
+                      تاریخ تولد
                     </label>
                     <input
-                      type="text"
-                      {...register("post_code", {
-                        pattern: {
-                          value: /^\d{10}$/,
-                          message: "کد پستی باید ۱۰ رقم باشد",
-                        },
-                      })}
-                      disabled={!isEditing}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all duration-200"
-                      placeholder="۱۰ رقم"
-                    />
-                    {errors.post_code && (
-                      <p className="text-red-500 text-sm">
-                        {errors.post_code.message}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Seller License ID */}
-                  <div className="space-y-2">
-                    <label className="flex items-center text-sm font-medium text-gray-700">
-                      <Briefcase className="w-4 h-4 ml-2 text-gray-500" />
-                      شماره پروانه کسب
-                    </label>
-                    <input
-                      type="text"
-                      {...register("seller_license_id")}
+                      type="date"
+                      {...register("birthday")}
                       disabled={!isEditing}
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all duration-200"
                     />
@@ -982,9 +990,9 @@ export default function Profile() {
                     <textarea
                       {...register("seller_address")}
                       disabled={!isEditing}
-                      rows={3}
+                      rows={2}
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500 transition-all duration-200 resize-none"
-                      placeholder="آدرس کامل..."
+                      placeholder="آدرس خود را وارد کنید..."
                     />
                   </div>
                 </div>
@@ -1000,6 +1008,7 @@ export default function Profile() {
                         onClick={() => {
                           setIsEditing(false);
                           resetFormWithUserData();
+                          // Reset image previews
                           updateImagePreviews();
                         }}
                         className="px-6 py-3 text-gray-600 hover:text-gray-800 transition-colors border border-gray-300 rounded-xl hover:bg-gray-50"

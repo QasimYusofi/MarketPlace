@@ -145,7 +145,7 @@ export default function Products() {
   } = useForm();
 
   const price = watch("price", 0);
-  const comparePrice = watch("comparePrice", 0);
+  const compare_price = watch("compare_price", 0);
   const title = watch("title", "");
 
   // Function to format price with commas
@@ -188,7 +188,7 @@ export default function Products() {
 
   // Function to get image URL from Django API
   const getImageUrl = (product, index = 0) => {
-    if (!product.images || !product.images[index]) {
+    if (!product.images || product.images.length === 0) {
       return "/api/placeholder/400/300";
     }
 
@@ -199,6 +199,9 @@ export default function Products() {
     }
     if (image.image) {
       return image.image;
+    }
+    if (image.image_url) {
+      return image.image_url;
     }
 
     return "/api/placeholder/400/300";
@@ -211,13 +214,12 @@ export default function Products() {
   useEffect(() => {
     if (products.length > 0) {
       const lowStock = products.filter(
-        (p) => p.stock_quantity > 0 && p.stock_quantity <= 10
+        (p) => p.stock > 0 && p.stock <= 10
       ).length;
-      const outOfStock = products.filter((p) => p.stock_quantity === 0).length;
+      const outOfStock = products.filter((p) => p.stock === 0).length;
       const totalValue = products.reduce(
         (sum, product) =>
-          sum +
-          (parseFloat(product.price) || 0) * (product.stock_quantity || 0),
+          sum + (parseFloat(product.price) || 0) * (product.stock || 0),
         0
       );
 
@@ -230,9 +232,16 @@ export default function Products() {
     }
   }, [products]);
 
+  const getAuthToken = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("accessToken");
+    }
+    return null;
+  };
+
   const fetchStoreAndProducts = async () => {
     try {
-      const token = localStorage.getItem("accessToken");
+      const token = getAuthToken();
       if (!token) {
         toast.error("لطفا ابتدا وارد شوید");
         setIsLoading(false);
@@ -254,7 +263,6 @@ export default function Products() {
 
         setCurrentStore(storeData);
         await fetchProducts();
-        toast.success("🛍️ اطلاعات فروشگاه با موفقیت بارگذاری شد");
       } else {
         toast.error("❌ خطا در دریافت اطلاعات فروشگاه");
       }
@@ -269,7 +277,7 @@ export default function Products() {
   const fetchProducts = async () => {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem("accessToken");
+      const token = getAuthToken();
 
       const response = await fetch(`${BASE_API}/products/`, {
         method: "GET",
@@ -410,27 +418,31 @@ export default function Products() {
 
     setIsCreating(true);
     try {
-      const token = localStorage.getItem("accessToken");
+      const token = getAuthToken();
+      if (!token) {
+        toast.error("لطفا ابتدا وارد شوید");
+        return;
+      }
+
       const formData = new FormData();
 
-      // Append text fields according to Django model
+      // Append text fields according to Django model - using exact field names
       formData.append("title", data.title);
       formData.append("description", data.description);
       formData.append("sku", data.sku);
       formData.append("price", data.price);
-      formData.append("compare_price", data.comparePrice || "");
-      formData.append("stock_quantity", data.stock);
+      if (data.compare_price) {
+        formData.append("compare_price", data.compare_price);
+      }
+      formData.append("stock", data.stock);
       formData.append("category", selectedMainCategory);
 
-      // Append sizes and colors as JSON
+      // Append sizes and colors as JSON arrays
       if (selectedSizes.length > 0) {
         formData.append("sizes", JSON.stringify(selectedSizes));
       }
       if (selectedColors.length > 0) {
         formData.append("colors", JSON.stringify(selectedColors));
-      }
-      if (selectedSizeType) {
-        formData.append("size_type", selectedSizeType);
       }
 
       // Append images
@@ -438,22 +450,38 @@ export default function Products() {
         formData.append("images", image.file);
       });
 
+      console.log("🔄 Creating product with data:", {
+        title: data.title,
+        sku: data.sku,
+        price: data.price,
+        stock: data.stock,
+        category: selectedMainCategory,
+        sizes: selectedSizes,
+        colors: selectedColors,
+        imageCount: productImages.length,
+      });
+
       const response = await fetch(`${BASE_API}/products/`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
+          // Don't set Content-Type for FormData - browser will set it with boundary
         },
         body: formData,
       });
 
       if (response.ok) {
         const newProduct = await response.json();
+        console.log("✅ Product created successfully:", newProduct);
         setProducts((prev) => [newProduct, ...prev]);
         closeModal();
         toast.success("🎉 محصول با موفقیت ایجاد شد");
       } else {
         const errorData = await response.json();
-        throw new Error(errorData.detail || "خطا در ایجاد محصول");
+        console.error("❌ Product creation failed:", errorData);
+        throw new Error(
+          errorData.detail || errorData.message || "خطا در ایجاد محصول"
+        );
       }
     } catch (error) {
       console.error("Error creating product:", error);
@@ -474,7 +502,7 @@ export default function Products() {
     if (!confirm("⚠️ آیا از حذف این محصول اطمینان دارید؟")) return;
 
     try {
-      const token = localStorage.getItem("accessToken");
+      const token = getAuthToken();
       const response = await fetch(`${BASE_API}/products/${productId}/`, {
         method: "DELETE",
         headers: {
@@ -497,17 +525,49 @@ export default function Products() {
   const duplicateProduct = async (productId, e) => {
     e.stopPropagation();
     try {
-      const token = localStorage.getItem("accessToken");
-      const response = await fetch(
-        `${BASE_API}/products/${productId}/duplicate/`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const token = getAuthToken();
+
+      // First get the product to duplicate
+      const getResponse = await fetch(`${BASE_API}/products/${productId}/`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!getResponse.ok) {
+        throw new Error("خطا در دریافت اطلاعات محصول");
+      }
+
+      const originalProduct = await getResponse.json();
+
+      // Create a new product with similar data but new SKU
+      const formData = new FormData();
+      formData.append("title", `${originalProduct.title} (کپی)`);
+      formData.append("description", originalProduct.description);
+      formData.append("sku", generateSKU());
+      formData.append("price", originalProduct.price);
+      if (originalProduct.compare_price) {
+        formData.append("compare_price", originalProduct.compare_price);
+      }
+      formData.append("stock", originalProduct.stock);
+      formData.append("category", originalProduct.category);
+
+      if (originalProduct.sizes && originalProduct.sizes.length > 0) {
+        formData.append("sizes", JSON.stringify(originalProduct.sizes));
+      }
+      if (originalProduct.colors && originalProduct.colors.length > 0) {
+        formData.append("colors", JSON.stringify(originalProduct.colors));
+      }
+
+      const response = await fetch(`${BASE_API}/products/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
 
       if (response.ok) {
         const duplicatedProduct = await response.json();
@@ -540,9 +600,9 @@ export default function Products() {
       case "price-low":
         return (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
       case "stock-high":
-        return (b.stock_quantity || 0) - (a.stock_quantity || 0);
+        return (b.stock || 0) - (a.stock || 0);
       case "stock-low":
-        return (a.stock_quantity || 0) - (b.stock_quantity || 0);
+        return (a.stock || 0) - (b.stock || 0);
       case "newest":
       default:
         return (
@@ -1070,7 +1130,7 @@ export default function Products() {
                 <div className="relative">
                   <input
                     type="text"
-                    {...register("comparePrice", {
+                    {...register("compare_price", {
                       validate: {
                         min: (value) => {
                           if (!value) return true;
@@ -1083,18 +1143,18 @@ export default function Products() {
                       },
                     })}
                     onChange={(e) =>
-                      handlePriceChange("comparePrice", e.target.value)
+                      handlePriceChange("compare_price", e.target.value)
                     }
-                    value={comparePrice ? formatPrice(comparePrice) : ""}
+                    value={compare_price ? formatPrice(compare_price) : ""}
                     className="w-full px-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/50 text-left"
                     placeholder="اختیاری"
                     dir="ltr"
                   />
                 </div>
-                {errors.comparePrice && (
+                {errors.compare_price && (
                   <p className="text-red-500 text-sm mt-2 flex items-center">
                     <AlertCircle className="h-4 w-4 ml-1" />
-                    {errors.comparePrice.message}
+                    {errors.compare_price.message}
                   </p>
                 )}
               </div>
@@ -1126,7 +1186,7 @@ export default function Products() {
             </div>
 
             {/* Price Comparison Display */}
-            {(price > 0 || comparePrice > 0) && (
+            {(price > 0 || compare_price > 0) && (
               <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl p-6 border border-green-200">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1140,20 +1200,20 @@ export default function Products() {
                       {price ? formatPrice(price) : 0} ریال
                     </span>
                   </div>
-                  {comparePrice > price && (
+                  {compare_price > price && (
                     <div className="text-right">
                       <span className="text-sm font-semibold text-gray-700 block">
                         تخفیف:
                       </span>
                       <span className="text-green-600 font-bold text-xl">
-                        {Math.round((1 - price / comparePrice) * 100)}% تخفیف
+                        {Math.round((1 - price / compare_price) * 100)}% تخفیف
                       </span>
                       <div
                         className="text-sm text-gray-500 line-through"
                         dir="ltr"
                       >
-                        قیمت قبل: {comparePrice ? formatPrice(comparePrice) : 0}{" "}
-                        ریال
+                        قیمت قبل:{" "}
+                        {compare_price ? formatPrice(compare_price) : 0} ریال
                       </div>
                     </div>
                   )}
@@ -1643,17 +1703,17 @@ function ProductCard({
         {/* Stock Badge */}
         <div
           className={`absolute top-4 left-4 px-4 py-2 rounded-2xl text-sm font-bold backdrop-blur-sm border ${
-            product.stock_quantity > 10
+            product.stock > 10
               ? "bg-green-500/20 text-green-700 border-green-500/30"
-              : product.stock_quantity > 0
+              : product.stock > 0
               ? "bg-yellow-500/20 text-yellow-700 border-yellow-500/30"
               : "bg-red-500/20 text-red-700 border-red-500/30"
           }`}
         >
-          {product.stock_quantity > 10
+          {product.stock > 10
             ? "🟢 موجود"
-            : product.stock_quantity > 0
-            ? `🟡 کمبود (${product.stock_quantity})`
+            : product.stock > 0
+            ? `🟡 کمبود (${product.stock})`
             : "🔴 ناموجود"}
         </div>
 
@@ -1838,9 +1898,9 @@ function ProductListItem({
         {/* Stock Indicator */}
         <div
           className={`absolute -top-1 -left-1 w-4 h-4 rounded-full border-2 border-white ${
-            product.stock_quantity > 10
+            product.stock > 10
               ? "bg-green-500"
-              : product.stock_quantity > 0
+              : product.stock > 0
               ? "bg-yellow-500"
               : "bg-red-500"
           }`}
@@ -1879,7 +1939,7 @@ function ProductListItem({
 
           <div className="flex items-center space-x-2 space-x-reverse text-orange-600">
             <Package className="h-4 w-4" />
-            <span>موجودی: {product.stock_quantity || 0}</span>
+            <span>موجودی: {product.stock || 0}</span>
           </div>
 
           {product.category && (
