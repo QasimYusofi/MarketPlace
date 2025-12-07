@@ -1,6 +1,6 @@
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import Profile from "@/components/dashboard/sections/Profile";
-import Stores from "@/components/dashboard/sections/Stores";
+// import Stores from "@/components/dashboard/sections/Stores";
 import Products from "@/components/dashboard/sections/Products";
 import Orders from "@/components/dashboard/sections/Orders";
 import Subscriptions from "@/components/dashboard/sections/Subscriptions";
@@ -9,7 +9,6 @@ import Cart from "@/components/dashboard/sections/Cart";
 
 const sectionComponents = {
   profile: Profile,
-  stores: Stores,
   products: Products,
   orders: Orders,
   subscriptions: Subscriptions,
