@@ -426,49 +426,72 @@ export default function Products() {
 
       const formData = new FormData();
 
-      // Append text fields according to Django model - using exact field names
-      formData.append("title", data.title);
-      formData.append("description", data.description);
-      formData.append("sku", data.sku);
-      formData.append("price", data.price);
-      if (data.compare_price) {
-        formData.append("compare_price", data.compare_price);
-      }
-      formData.append("stock", data.stock);
-      formData.append("category", selectedMainCategory);
+      // // 1. Fix price format - remove commas
+      // const cleanPrice = data.price.replace(/,/g, '');
+      // formData.append("title", data.title);
+      // formData.append("description", data.description);
+      // formData.append("sku", data.sku);
+      // formData.append("price", cleanPrice);
+      
+      // if (data.compare_price) {
+      //   const cleanComparePrice = data.compare_price.replace(/,/g, '');
+      //   formData.append("compare_price", cleanComparePrice);
+      // }
+      
+      // formData.append("stock", data.stock);
+      // formData.append("category", selectedMainCategory);
 
-      // Append sizes and colors as JSON arrays
-      if (selectedSizes.length > 0) {
-        formData.append("sizes", JSON.stringify(selectedSizes));
-      }
-      if (selectedColors.length > 0) {
-        formData.append("colors", JSON.stringify(selectedColors));
-      }
+      // // 2. Append sizes and colors as actual arrays, not JSON strings
+      // if (selectedSizes.length > 0) {
+      //   // Append each size individually
+      //   selectedSizes.forEach((size, index) => {
+      //     formData.append(`sizes[${index}]`, size);
+      //   });
+      // }
+      
+      // if (selectedColors.length > 0) {
+      //   // Append each color individually
+      //   selectedColors.forEach((color, index) => {
+      //     formData.append(`colors[${index}]`, color);
+      //   });
+      // }
 
-      // Append images
-      productImages.forEach((image) => {
+      // 3. Handle images - mark first as primary
+      productImages.forEach((image, index) => {
         formData.append("images", image.file);
+        // If you want to mark first image as primary
+        if (index === 0) {
+          formData.append("is_primary", "true");
+        }
       });
 
-      console.log("🔄 Creating product with data:", {
-        title: data.title,
-        sku: data.sku,
-        price: data.price,
-        stock: data.stock,
-        category: selectedMainCategory,
-        sizes: selectedSizes,
-        colors: selectedColors,
-        imageCount: productImages.length,
-      });
+      // console.log("🔄 Creating product with data:", {
+      //   title: data.title,
+      //   sku: data.sku,
+      //   price: cleanPrice,
+      //   stock: data.stock,
+      //   category: selectedMainCategory,
+      //   sizes: selectedSizes,
+      //   colors: selectedColors,
+      //   imageCount: productImages.length,
+      // });
+
+      formData.append("title", "Test Product");
+      formData.append("description", "Test Description");
+      formData.append("sku", generateSKU());
+      formData.append("price", "1000");  // No commas
+      formData.append("stock", "10");
+      formData.append("category", "men");
 
       const response = await fetch(`${BASE_API}/products/`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          // Don't set Content-Type for FormData - browser will set it with boundary
+          // Don't set Content-Type for FormData
         },
-        body: formData,
+        body: formData
       });
+
 
       if (response.ok) {
         const newProduct = await response.json();

@@ -205,8 +205,14 @@ export default function Profile() {
 
       // If image URL is provided directly by Django
       if (imageInfo.url) {
-        // Handle relative URLs by prepending base API URL if needed
+        // Handle relative URLs
         if (imageInfo.url.startsWith("/")) {
+          // For media URLs (like /media/store_logos/...), use Django base URL without /api
+          if (imageInfo.url.startsWith("/media/")) {
+            const djangoBaseUrl = BASE_API.replace('/api', '');
+            return `${djangoBaseUrl}${imageInfo.url}`;
+          }
+          // For other relative URLs, use the full API URL
           return `${BASE_API}${imageInfo.url}`;
         }
         return imageInfo.url;
@@ -351,7 +357,7 @@ export default function Profile() {
       }
 
       const formData = new FormData();
-      formData.append(imageType === "profile" ? "profile_image" : "logo", file);
+      formData.append("file", file);
 
       console.log("🔄 Starting image upload...");
 

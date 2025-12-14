@@ -41,7 +41,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='upload-image')
 
-    def upload_image(self, request, pk=None):
+    def upload_image(self, request, phone=None):
         user = self.get_object()
         file_obj = request.FILES.get('file')
         if not file_obj:
@@ -50,7 +50,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         return Response({'detail': 'uploaded', 'profile_image_info': user.get_profile_image_info()})
 
     @action(detail=True, methods=['delete'], url_path='remove-image')
-    def remove_image(self, request, pk=None):
+    def remove_image(self, request, phone=None):
         user = self.get_object()
         if not user.has_profile_image():
             return Response({'detail': 'no image'}, status=status.HTTP_404_NOT_FOUND)
@@ -58,7 +58,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         return Response({'detail': 'removed'})
 
     @action(detail=True, methods=['get'], url_path='image-info')
-    def image_info(self, request, pk=None):
+    def image_info(self, request, phone=None):
         user = self.get_object()
         info = user.get_profile_image_info()
         if not info:
@@ -66,7 +66,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
         return Response(info)
 
     @action(detail=True, methods=['get'], url_path='image')
-    def download_image(self, request, pk=None):
+    def download_image(self, request, phone=None):
         user = self.get_object()
         if not user.has_profile_image():
             return Response({'detail': 'no image'}, status=status.HTTP_404_NOT_FOUND)
@@ -113,6 +113,9 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
                           'statistics']:
             # Store owner can manage their own data, admins can manage all
             return [IsSelfOrAdmin()]
+        if self.action in ['test_upload_store_logo']:
+            # Allow anyone for testing
+            return [permissions.AllowAny()]
         if self.action in ['rate-seller', 'rate-store']:
             # Only customers and admins can rate
             return [IsCustomerOrAdmin()]
@@ -127,13 +130,13 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
     # Profile Image Actions
 
     @action(detail=True, methods=['post'], url_path='upload-profile-image')
-    def upload_profile_image(self, request, pk=None):
+    def upload_profile_image(self, request, phone=None):
         """Upload profile image for store owner"""
         store_owner = self.get_object()
         file_obj = request.FILES.get('file')
         if not file_obj:
             return Response(
-                {'detail': 'file is required'}, 
+                {'detail': 'file is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         store_owner.update_profile_image(file_obj)
@@ -143,31 +146,31 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=True, methods=['delete'], url_path='remove-profile-image')
-    def remove_profile_image(self, request, pk=None):
+    def remove_profile_image(self, request, phone=None):
         """Remove profile image for store owner"""
         store_owner = self.get_object()
         if not store_owner.has_profile_image():
             return Response(
-                {'detail': 'No profile image found'}, 
+                {'detail': 'No profile image found'},
                 status=status.HTTP_404_NOT_FOUND
             )
         store_owner.remove_profile_image()
         return Response({'detail': 'Profile image removed successfully'})
 
     @action(detail=True, methods=['get'], url_path='profile-image-info')
-    def profile_image_info(self, request, pk=None):
+    def profile_image_info(self, request, phone=None):
         """Get profile image metadata"""
         store_owner = self.get_object()
         info = store_owner.get_profile_image_info()
         if not info:
             return Response(
-                {'detail': 'No profile image found'}, 
+                {'detail': 'No profile image found'},
                 status=status.HTTP_404_NOT_FOUND
             )
         return Response(info)
 
     @action(detail=True, methods=['get'], url_path='profile-image')
-    def download_profile_image(self, request, pk=None):
+    def download_profile_image(self, request, phone=None):
         """Download profile image"""
         store_owner = self.get_object()
         if not store_owner.has_profile_image():
@@ -185,13 +188,13 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
 
     # Store Logo Actions
     @action(detail=True, methods=['post'], url_path='upload-store-logo')
-    def upload_store_logo(self, request, pk=None):
+    def upload_store_logo(self, request, phone=None):
         """Upload store logo"""
         store_owner = self.get_object()
         file_obj = request.FILES.get('file')
         if not file_obj:
             return Response(
-                {'detail': 'file is required'}, 
+                {'detail': 'file is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         store_owner.update_store_logo(file_obj)
@@ -201,31 +204,31 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=True, methods=['delete'], url_path='remove-store-logo')
-    def remove_store_logo(self, request, pk=None):
+    def remove_store_logo(self, request, phone=None):
         """Remove store logo"""
         store_owner = self.get_object()
         if not store_owner.has_store_logo():
             return Response(
-                {'detail': 'No store logo found'}, 
+                {'detail': 'No store logo found'},
                 status=status.HTTP_404_NOT_FOUND
             )
         store_owner.remove_store_logo()
         return Response({'detail': 'Store logo removed successfully'})
 
     @action(detail=True, methods=['get'], url_path='store-logo-info')
-    def store_logo_info(self, request, pk=None):
+    def store_logo_info(self, request, phone=None):
         """Get store logo metadata"""
         store_owner = self.get_object()
         info = store_owner.get_store_logo_info()
         if not info:
             return Response(
-                {'detail': 'No store logo found'}, 
+                {'detail': 'No store logo found'},
                 status=status.HTTP_404_NOT_FOUND
             )
         return Response(info)
 
     @action(detail=True, methods=['get'], url_path='store-logo')
-    def download_store_logo(self, request, pk=None):
+    def download_store_logo(self, request, phone=None):
         """Download store logo"""
         store_owner = self.get_object()
         if not store_owner.has_store_logo():
@@ -243,7 +246,7 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
 
     # Statistics Actions
     @action(detail=True, methods=['get'], url_path='statistics')
-    def statistics(self, request, pk=None):
+    def statistics(self, request, phone=None):
         """Get store owner statistics"""
         store_owner = self.get_object()
         return Response({
@@ -256,30 +259,30 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
 
     # Rating Actions
     @action(detail=True, methods=['post'], url_path='rate-seller')
-    def rate_seller(self, request, pk=None):
+    def rate_seller(self, request, phone=None):
         """Add a rating to the seller"""
         store_owner = self.get_object()
         rating = request.data.get('rating')
-        
+
         if not rating:
             return Response(
-                {'detail': 'rating is required'}, 
+                {'detail': 'rating is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
             rating = float(rating)
             if rating < 0 or rating > 5:
                 return Response(
-                    {'detail': 'Rating must be between 0 and 5'}, 
+                    {'detail': 'Rating must be between 0 and 5'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
         except (ValueError, TypeError):
             return Response(
-                {'detail': 'Invalid rating value'}, 
+                {'detail': 'Invalid rating value'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         store_owner.update_seller_rating(rating)
         return Response({
             'detail': 'Seller rating updated successfully',
@@ -287,7 +290,7 @@ class StoreOwnerViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=True, methods=['post'], url_path='rate-store')
-    def rate_store(self, request, pk=None):
+    def rate_store(self, request, phone=None):
         """Add a rating to the store"""
         store_owner = self.get_object()
         rating = request.data.get('rating')
