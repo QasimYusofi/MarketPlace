@@ -111,6 +111,7 @@ class ProductSerializer(serializers.ModelSerializer):
     is_low_stock = serializers.ReadOnlyField()
     discount_percentage = serializers.ReadOnlyField()
     images_count = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -137,6 +138,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'is_low_stock',
             'discount_percentage',
             'images_count',
+            'images',
         ]
         read_only_fields = [
             'id',

@@ -343,7 +343,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         # Apply ordering
         queryset = queryset.order_by('-created_at')
-
+        
         return queryset
 
     def get_permissions(self):
