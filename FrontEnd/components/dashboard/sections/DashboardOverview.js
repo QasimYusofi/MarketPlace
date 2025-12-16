@@ -729,7 +729,7 @@ export default function DashboardOverview() {
               </div>
               <p className="text-gray-500 mb-2">هنوز محصولی اضافه نکرده‌اید.</p>
               <button
-                onClick={() => router.push("/dashboard/products/new")}
+                onClick={() => router.push("/dashboard/products/")}
                 className="text-blue-600 hover:text-blue-800 font-medium flex items-center justify-center mx-auto"
               >
                 <Plus className="ml-1" />
