@@ -402,63 +402,45 @@ class ProductViewSet(viewsets.ModelViewSet):
             'image_url': added_image.image.url
         })
 
-    @action(detail=True, methods=['delete'], url_path=r'remove-image/(?P<image_index>\d+)')
-    def remove_image(self, request, pk=None, image_index=None):
-        """Remove an image from a product by index"""
+    @action(detail=True, methods=['delete'], url_path=r'remove-image/(?P<image_id>[^/]+)')
+    def remove_image(self, request, pk=None, image_id=None):
+        """Remove an image from a product by image ID"""
         product = self.get_object()
 
-        if image_index is None:
+        if image_id is None:
             return Response(
-                {'detail': 'Image index is required'},
+                {'detail': 'Image ID is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        try:
-            image_index = int(image_index)
-        except ValueError:
-            return Response(
-                {'detail': 'Invalid image index'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        removed_image = product.remove_image(image_index)
+        removed_image = product.remove_image(image_id)
         if removed_image is None:
             return Response(
                 {'detail': 'Image not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        product.save()
         return Response({
             'detail': 'Image removed successfully'
         })
 
-    @action(detail=True, methods=['post'], url_path=r'set-primary-image/(?P<image_index>\d+)')
-    def set_primary_image(self, request, pk=None, image_index=None):
-        """Set an image as primary by index"""
+    @action(detail=True, methods=['post'], url_path=r'set-primary-image/(?P<image_id>[^/]+)')
+    def set_primary_image(self, request, pk=None, image_id=None):
+        """Set an image as primary by image ID"""
         product = self.get_object()
 
-        if image_index is None:
+        if image_id is None:
             return Response(
-                {'detail': 'Image index is required'},
+                {'detail': 'Image ID is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        try:
-            image_index = int(image_index)
-        except ValueError:
-            return Response(
-                {'detail': 'Invalid image index'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if not product.set_primary_image(image_index):
+        if not product.set_primary_image(image_id):
             return Response(
                 {'detail': 'Image not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        product.save()
         return Response({
             'detail': 'Primary image set successfully'
         })

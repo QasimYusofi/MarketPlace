@@ -84,8 +84,8 @@ then get the access token
 
 ### Image Management
 - `POST /api/products/{id}/add-image/` - Add image to product
-- `DELETE /api/products/{id}/remove-image/{image_index}/` - Remove image by index
-- `POST /api/products/{id}/set-primary-image/{image_index}/` - Set image as primary
+- `DELETE /api/products/{id}/remove-image/{image_id}/` - Remove image by index
+- `POST /api/products/{id}/set-primary-image/{image_id}/` - Set image as primary
 
 ### Ratings & Analytics
 - `POST /api/products/{id}/rate/` - Rate product
