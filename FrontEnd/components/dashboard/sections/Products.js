@@ -160,7 +160,11 @@ export default function Products() {
 
     const storeName = currentStore.store_name || "STORE";
     const year = new Date().getFullYear();
-    const productListLength = products.length + 1;
+    console.log("products: length");
+    // console.log(products[products.length - 1]["sku"].split("-")[2]);
+    const productListLength =
+      Number(products[products.length - 1]["sku"].split("-")[2]) + 1;
+    console.log(productListLength);
 
     // Clean store name (remove spaces and special characters, take first 4 chars)
     const cleanStoreName = storeName
@@ -173,7 +177,6 @@ export default function Products() {
     const sku = `${cleanStoreName}-${year}-${productListLength
       .toString()
       .padStart(4, "0")}`;
-
     return sku;
   };
 

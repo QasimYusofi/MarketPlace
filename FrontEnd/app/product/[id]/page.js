@@ -245,9 +245,9 @@ export default function EditProductPage() {
     if (!initialDataRef.current) return false;
 
     const currentFormValues = getValues();
-    
+
     // بررسی تغییرات فرم
-    const formChanged = 
+    const formChanged =
       title !== initialDataRef.current.title ||
       description !== initialDataRef.current.description ||
       sku !== initialDataRef.current.sku ||
@@ -259,20 +259,34 @@ export default function EditProductPage() {
       tags !== initialDataRef.current.tags;
 
     // بررسی تغییرات سایزها
-    const sizesChanged = 
-      JSON.stringify([...selectedSizes].sort()) !== 
+    const sizesChanged =
+      JSON.stringify([...selectedSizes].sort()) !==
       JSON.stringify([...initialDataRef.current.sizes].sort());
 
     // بررسی تغییرات رنگ‌ها
-    const colorsChanged = 
-      JSON.stringify([...selectedColors].sort()) !== 
+    const colorsChanged =
+      JSON.stringify([...selectedColors].sort()) !==
       JSON.stringify([...initialDataRef.current.colors].sort());
 
     // بررسی تغییرات تصاویر
     const imagesChanged = newImages.length > 0;
 
     return formChanged || sizesChanged || colorsChanged || imagesChanged;
-  }, [title, description, sku, price, comparePrice, stock, category, status, tags, selectedSizes, selectedColors, newImages, getValues]);
+  }, [
+    title,
+    description,
+    sku,
+    price,
+    comparePrice,
+    stock,
+    category,
+    status,
+    tags,
+    selectedSizes,
+    selectedColors,
+    newImages,
+    getValues,
+  ]);
 
   // به‌روزرسانی وضعیت dirty هنگام تغییرات
   useEffect(() => {
@@ -344,7 +358,7 @@ export default function EditProductPage() {
         status: productData.status || "active",
         tags: productData.tags ? productData.tags.join(", ") : "",
       };
-      
+
       reset(formData);
 
       // تنظیم سایزها
@@ -380,7 +394,7 @@ export default function EditProductPage() {
           const imageUrl = getImageUrl(img);
           console.log(`Image ${index} URL:`, imageUrl);
           return {
-            id: `existing-${index}`,
+            id: img.id,
             url: imageUrl,
             index: index,
             isExisting: true,
@@ -404,7 +418,7 @@ export default function EditProductPage() {
 
       // ریست کردن تصاویر جدید
       setNewImages([]);
-      
+
       // تنظیم dirty state به false
       setFormDirty(false);
 
@@ -515,7 +529,7 @@ export default function EditProductPage() {
     }));
 
     setNewImages((prev) => [...prev, ...newImagePreviews]);
-    toast.success(`📷 ${files.length} تصویر اضافه شد`);
+    toast.success(`${files.length} تصویر اضافه شد`);
   };
 
   // حذف تصویر جدید

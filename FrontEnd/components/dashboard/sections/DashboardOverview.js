@@ -272,33 +272,38 @@ export default function DashboardOverview() {
   };
 
   // Updated getImageUrl function for Django API
+
   const getImageUrl = (imageInfo) => {
-    if (!imageInfo) {
-      console.log("🖼️ No image info provided");
-      return null;
-    }
+    if (!imageInfo) return null;
 
     try {
-      console.log("🖼️ Processing image info:", imageInfo);
+      // If it's a blob URL (temporary preview)
+      if (typeof imageInfo === "string" && imageInfo.startsWith("blob:")) {
+        return imageInfo;
+      }
 
-      // If image URL is provided directly
+      // If image URL is provided directly by Django
       if (imageInfo.url) {
+        // Handle relative URLs
+        if (imageInfo.url.startsWith("/")) {
+          // For media URLs (like /media/profile_images/...), use Django base URL without /api
+          if (imageInfo.url.startsWith("/media/")) {
+            const djangoBaseUrl = BASE_API.replace("/api", "");
+            return `${djangoBaseUrl}${imageInfo.url}`;
+          }
+          return `${BASE_API}${imageInfo.url}`;
+        }
         return imageInfo.url;
       }
 
-      // If we have base64 data
-      if (imageInfo.data) {
-        const base64 = imageInfo.data;
-        const contentType = imageInfo.content_type || "image/jpeg";
-        return `data:${contentType};base64,${base64}`;
+      if (imageInfo.filename) {
+        return `${BASE_API}${imageInfo.filename}`;
       }
 
-      // If it's a simple image field
       if (typeof imageInfo === "string" && imageInfo.startsWith("http")) {
         return imageInfo;
       }
 
-      console.warn("🖼️ Unknown image info format:", imageInfo);
       return null;
     } catch (error) {
       console.error("❌ Error creating image URL:", error);
@@ -690,7 +695,7 @@ export default function DashboardOverview() {
               title="افزودن محصول"
               description="محصول جدید به فروشگاه اضافه کنید"
               icon={<Plus className="text-green-600" />}
-              onClick={() => router.push("/dashboard/products/new")}
+              onClick={() => router.push("/dashboard/products/")}
               color="green"
             />
             <QuickAction
