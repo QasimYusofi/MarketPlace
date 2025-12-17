@@ -60,3 +60,4 @@ Ok to proceed? (y)
     - npm install axios react-hot-toast
     - npm install lucide-react   // for more Icons
     - npm install react-hook-form  // for file
+    - npm install react-datepicker date-fns date-fns-jalali
