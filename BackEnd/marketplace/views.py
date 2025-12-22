@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django.http import HttpResponse
+from django.db.models import Q
 from .models import Customer, StoreOwner, Product, ProductRating
 from .serializers import CustomerSerializer, StoreOwnerSerializer, ProductSerializer, ProductRatingSerializer
 from .permissions import IsAdminRole, IsSelfOrAdmin, IsStoreOwner, IsStoreOwnerOrAdmin, IsCustomer, IsCustomerOrAdmin
@@ -560,3 +561,96 @@ class ProductViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+
+class CategoryViewSet(viewsets.ViewSet):
+    """ViewSet for category-based operations on the home page"""
+
+    def get_permissions(self):
+        """Allow anyone to access category endpoints"""
+        return [permissions.AllowAny()]
+
+    @action(detail=True, methods=['get'], url_path='stores')
+    def stores_by_category(self, request, pk=None):
+        """Get stores that have products in the specified category"""
+        category = pk
+
+        # Validate category
+        valid_categories = ['men', 'women', 'kids']
+        if category not in valid_categories:
+            return Response(
+                {'detail': f'Invalid category. Valid categories: {", ".join(valid_categories)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get stores that have active products in this category
+        stores = StoreOwner.objects.filter(
+            products__category=category,
+            products__status='active',
+            seller_status='approved'
+        ).distinct()
+
+        # Format response
+        store_list = []
+        for store in stores:
+            store_data = {
+                'id': str(store.id),
+                'store_name': store.store_name,
+                'store_rating': store.store_rating or {'average': 0, 'count': 0},
+                'store_logo': store.store_logo.url if store.store_logo else None,
+                'products_count': store.products.filter(
+                    category=category,
+                    status='active'
+                ).count()
+            }
+            store_list.append(store_data)
+
+        return Response({
+            'category': category,
+            'stores': store_list,
+            'total_stores': len(store_list)
+        })
+
+    @action(detail=True, methods=['get'], url_path=r'stores/(?P<store_id>[^/]+)/products')
+    def products_by_store_category(self, request, pk=None, store_id=None):
+        """Get products of a specific store in the specified category"""
+        category = pk
+        store_id = store_id
+
+        # Validate category
+        valid_categories = ['men', 'women', 'kids']
+        if category not in valid_categories:
+            return Response(
+                {'detail': f'Invalid category. Valid categories: {", ".join(valid_categories)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate store exists and has products in this category
+        try:
+            store = StoreOwner.objects.get(id=store_id, seller_status='approved')
+        except StoreOwner.DoesNotExist:
+            return Response(
+                {'detail': 'Store not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get products
+        products = Product.objects.filter(
+            store_owner=store,
+            category=category,
+            status='active'
+        ).order_by('-created_at')
+
+        # Serialize products
+        serializer = ProductSerializer(products, many=True, context={'request': request})
+
+        return Response({
+            'category': category,
+            'store': {
+                'id': str(store.id),
+                'store_name': store.store_name,
+                'store_rating': store.store_rating or {'average': 0, 'count': 0}
+            },
+            'products': serializer.data,
+            'total_products': len(serializer.data)
+        })

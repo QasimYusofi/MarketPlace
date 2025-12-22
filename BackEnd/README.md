@@ -161,3 +161,81 @@ then get the access token
 - **sizes/colors/tags**: Array of strings
 - **images**: Array of objects with binary data
 - **rating**: Object with average (decimal) and count (integer)
+
+//////////////////////////////
+# Category API for Home Page
+## 📋 Available API Endpoints
+
+### Get Stores by Category
+- `GET /api/categories/{category}/stores/` - Get all stores that have products in the specified category
+
+**Valid Categories:** men, women, kids
+
+
+### Get Products by Store and Category
+- `GET /api/categories/{category}/stores/{store_id}/products/` - Get products of a specific store in the specified category
+
+**Response Format:**
+```json
+{
+  "category": "men",
+  "store": {
+    "id": "store_id",
+    "store_name": "Store Name",
+    "store_rating": {
+      "average": 4.5,
+      "count": 10
+    }
+  },
+  "products": [
+    {
+      "id": "product_id",
+      "store_owner": {
+        "id": "store_owner_id",
+        "store_name": "Store Name",
+        "full_name": "Owner Name"
+      },
+      "title": "Product Title",
+      "description": "Product Description",
+      "sku": "SKU123",
+      "price": "150000.00",
+      "compare_price": "200000.00",
+      "stock": 100,
+      "category": "men",
+      "sizes": ["S", "M", "L"],
+      "colors": ["Black", "White"],
+      "tags": ["tag1", "tag2"],
+      "status": "active",
+      "views": 150,
+      "sales_count": 25,
+      "rating": {
+        "average": 4.2,
+        "count": 8
+      },
+      "created_at": "2025-01-01T10:00:00Z",
+      "updated_at": "2025-01-01T10:00:00Z",
+      "is_in_stock": true,
+      "is_low_stock": false,
+      "discount_percentage": 25,
+      "images_count": 3,
+      "images": [
+        {
+          "id": "image_id",
+          "image": "http://example.com/media/products/image.jpg",
+          "is_primary": true,
+          "created_at": "2025-01-01T10:00:00Z"
+        }
+      ]
+    }
+  ],
+  "total_products": 10
+}
+```
+
+
+## 📊 Filtering & Validation
+- **Categories**: Only men, women, kids are valid
+- **Products**: Only active products are returned
+- **Stores**: Only approved stores with active products in the category are returned
+- **Ordering**: Products ordered by creation date (newest first)
+- **Images**: Primary images shown first in product responses
