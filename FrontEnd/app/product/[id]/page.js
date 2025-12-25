@@ -1439,7 +1439,7 @@ export default function EditProductPage() {
                             alt="Product image"
                             onRemove={
                               img.isExisting
-                                ? () => removeExistingImage(img.index)
+                                ? () => removeExistingImage(img.id)
                                 : () => removeNewImage(img.id)
                             }
                             isNew={!img.isExisting}

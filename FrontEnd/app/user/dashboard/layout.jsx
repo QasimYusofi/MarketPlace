@@ -19,6 +19,7 @@ import {
   Home,
   ShoppingBag,
   CreditCard,
+  ShoppingCartIcon,
   Calendar,
   Star,
   HelpCircle,
@@ -58,9 +59,9 @@ const menuItems = [
     icon: <MapPin className="w-5 h-5" />,
   },
   {
-    title: "تراکنش‌ها",
-    href: "/user/dashboard/transactions",
-    icon: <CreditCard className="w-5 h-5" />,
+    title: "سبد خرید من",
+    href: "/cart",
+    icon: <ShoppingCartIcon className="w-5 h-5" />,
   },
   {
     title: "نظرات من",

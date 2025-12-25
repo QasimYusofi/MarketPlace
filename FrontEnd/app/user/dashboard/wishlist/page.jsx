@@ -10,6 +10,7 @@ import {
   Share2,
   Eye,
   TrendingUp,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -19,85 +20,116 @@ export default function WishlistPage() {
   const [wishlistItems, setWishlistItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState([]);
+  const [imageErrors, setImageErrors] = useState({});
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability
+    const fetchWishlist = async () => {
+      // Mock data for clothing products
+      const mockItems = [
+        {
+          id: 1,
+          product_id: "TS001",
+          name: "تیشرت مردانه تمام پنبه - مشکی",
+          price: "۱۵۹,۰۰۰ تومان",
+          original_price: "۲۲۰,۰۰۰ تومان",
+          discount: "۲۸٪",
+          image:
+            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
+          in_stock: true,
+          category: "تیشرت",
+          rating: 4.5,
+          reviews: 128,
+          sizes: ["S", "M", "L", "XL"],
+          colors: ["مشکی", "سفید", "آبی"],
+        },
+        {
+          id: 2,
+          product_id: "CT002",
+          name: "کاپشن مردانه زمستانه - سرمه‌ای",
+          price: "۴۵۰,۰۰۰ تومان",
+          original_price: "۵۵۰,۰۰۰ تومان",
+          discount: "۱۸٪",
+          image:
+            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
+          in_stock: true,
+          category: "کاپشن",
+          rating: 4.8,
+          reviews: 89,
+          sizes: ["M", "L", "XL", "2XL"],
+          colors: ["سرمه‌ای", "مشکی", "خاکستری"],
+        },
+        {
+          id: 3,
+          product_id: "PN003",
+          name: "پیراهن مردانه رسمی - سفید",
+          price: "۳۲۰,۰۰۰ تومان",
+          original_price: "۴۰۰,۰۰۰ تومان",
+          discount: "۲۰٪",
+          image:
+            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
+          in_stock: false,
+          category: "پیراهن",
+          rating: 4.3,
+          reviews: 204,
+          sizes: ["S", "M", "L"],
+          colors: ["سفید", "آبی", "صورتی"],
+        },
+        {
+          id: 4,
+          product_id: "SW004",
+          name: "سویشرت مردانه ورزشی - خاکستری",
+          price: "۲۸۰,۰۰۰ تومان",
+          original_price: "۳۵۰,۰۰۰ تومان",
+          discount: "۲۰٪",
+          image:
+            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
+          in_stock: true,
+          category: "سویشرت",
+          rating: 4.6,
+          reviews: 156,
+          sizes: ["M", "L", "XL"],
+          colors: ["خاکستری", "مشکی", "آبی"],
+        },
+        {
+          id: 5,
+          product_id: "SH005",
+          name: "شلوار جین مردانه - آبی",
+          price: "۱۸۰,۰۰۰ تومان",
+          original_price: "۲۵۰,۰۰۰ تومان",
+          discount: "۲۸٪",
+          image:
+            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
+          in_stock: true,
+          category: "شلوار",
+          rating: 4.4,
+          reviews: 92,
+          sizes: ["30", "32", "34", "36"],
+          colors: ["آبی", "مشکی", "خاکستری"],
+        },
+        {
+          id: 6,
+          product_id: "HD006",
+          name: "هودی مردانه پنبه‌ای - مشکی",
+          price: "۲۱۰,۰۰۰ تومان",
+          original_price: "۲۸۰,۰۰۰ تومان",
+          discount: "۲۵٪",
+          image:
+            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
+          in_stock: true,
+          category: "هودی",
+          rating: 4.7,
+          reviews: 115,
+          sizes: ["S", "M", "L", "XL"],
+          colors: ["مشکی", "خاکستری", "سفید"],
+        },
+      ];
+
+      setWishlistItems(mockItems);
+      setLoading(false);
+    };
+
     fetchWishlist();
   }, []);
-
-  const fetchWishlist = async () => {
-    // Mock data - replace with actual API call
-    const mockItems = [
-      {
-        id: 1,
-        product_id: "P001",
-        name: "تیشرت مردانه تمام پنبه",
-        price: "۱۵۹,۰۰۰ تومان",
-        original_price: "۲۲۰,۰۰۰ تومان",
-        discount: "۲۸٪",
-        image: "/api/placeholder/200/200",
-        in_stock: true,
-        category: "پوشاک",
-        rating: 4.5,
-        reviews: 128,
-      },
-      {
-        id: 2,
-        product_id: "P002",
-        name: "کفش ورزشی مردانه نایک",
-        price: "۴۵۰,۰۰۰ تومان",
-        original_price: "۵۵۰,۰۰۰ تومان",
-        discount: "۱۸٪",
-        image: "/api/placeholder/200/200",
-        in_stock: true,
-        category: "کفش",
-        rating: 4.8,
-        reviews: 89,
-      },
-      {
-        id: 3,
-        product_id: "P003",
-        name: "هدفون بی‌سیم بلوتوث",
-        price: "۳۲۰,۰۰۰ تومان",
-        original_price: "۴۰۰,۰۰۰ تومان",
-        discount: "۲۰٪",
-        image: "/api/placeholder/200/200",
-        in_stock: false,
-        category: "الکترونیک",
-        rating: 4.3,
-        reviews: 204,
-      },
-      {
-        id: 4,
-        product_id: "P004",
-        name: "ساعت مچی هوشمند",
-        price: "۲۸۰,۰۰۰ تومان",
-        original_price: "۳۵۰,۰۰۰ تومان",
-        discount: "۲۰٪",
-        image: "/api/placeholder/200/200",
-        in_stock: true,
-        category: "اکسسوری",
-        rating: 4.6,
-        reviews: 156,
-      },
-      {
-        id: 5,
-        product_id: "P005",
-        name: "کیف لپ تاپ چرمی",
-        price: "۱۸۰,۰۰۰ تومان",
-        original_price: "۲۵۰,۰۰۰ تومان",
-        discount: "۲۸٪",
-        image: "/api/placeholder/200/200",
-        in_stock: true,
-        category: "لوازم جانبی",
-        rating: 4.4,
-        reviews: 92,
-      },
-    ];
-
-    setWishlistItems(mockItems);
-    setLoading(false);
-  };
 
   const handleSelectItem = (id) => {
     setSelectedItems((prev) =>
@@ -174,13 +206,20 @@ export default function WishlistPage() {
     toast.success("لینک لیست علاقه‌مندی کپی شد");
   };
 
+  const handleImageError = (itemId) => {
+    setImageErrors((prev) => ({
+      ...prev,
+      [itemId]: true,
+    }));
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">لیست علاقه‌مندی</h1>
-          <p className="text-gray-600 mt-1">محصولات مورد علاقه شما</p>
+          <p className="text-gray-600 mt-1">پوشاک مورد علاقه شما</p>
         </div>
         <div className="flex space-x-3 space-x-reverse mt-4 md:mt-0">
           <button
@@ -257,7 +296,9 @@ export default function WishlistPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="animate-pulse">
-              <div className="h-80 bg-gray-200 rounded-xl"></div>
+              <div className="h-96 bg-gray-200 rounded-xl mb-4"></div>
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded w-1/2"></div>
             </div>
           ))}
         </div>
@@ -268,7 +309,7 @@ export default function WishlistPage() {
             لیست علاقه‌مندی شما خالی است
           </h3>
           <p className="text-gray-500 mb-6">
-            محصولات مورد علاقه خود را اینجا ذخیره کنید
+            پوشاک مورد علاقه خود را اینجا ذخیره کنید
           </p>
           <Link
             href="/products"
@@ -279,16 +320,28 @@ export default function WishlistPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {wishlistItems.map((item) => (
             <div
               key={item.id}
               className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden group hover:shadow-md transition-all duration-200"
             >
-              {/* Product Image */}
-              <div className="relative h-48 bg-gray-100">
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="text-4xl">🛍️</div>
+              {/* Product Image Container */}
+              <div className="relative flex justify-center items-center bg-gray-100">
+                <div className="w-full flex justify-center items-center">
+                  {imageErrors[item.id] ? (
+                    <div className="h-96 w-full flex flex-col items-center justify-center bg-gray-200">
+                      <ImageIcon className="w-16 h-16 text-gray-400 mb-4" />
+                      <span className="text-gray-500">تصویر بارگذاری نشد</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="object-cover rounded-2xl shadow-sm h-96 w-full"
+                      onError={() => handleImageError(item.id)}
+                    />
+                  )}
                 </div>
 
                 {/* Discount Badge */}
@@ -352,6 +405,23 @@ export default function WishlistPage() {
                   />
                 </div>
 
+                {/* Size and Color */}
+                <div className="flex items-center space-x-3 space-x-reverse mb-3">
+                  <div className="flex items-center">
+                    <span className="text-xs text-gray-500 ml-1">سایز:</span>
+                    <span className="text-xs font-medium">
+                      {item.sizes.join(", ")}
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="text-xs text-gray-500 ml-1">رنگ:</span>
+                    <span className="text-xs font-medium">
+                      {item.colors.slice(0, 2).join(", ")}
+                      {item.colors.length > 2 && "..."}
+                    </span>
+                  </div>
+                </div>
+
                 {/* Rating */}
                 <div className="flex items-center mb-3">
                   <div className="flex">
@@ -371,7 +441,7 @@ export default function WishlistPage() {
                     ))}
                   </div>
                   <span className="text-xs text-gray-500 mr-1">
-                    ({item.reviews})
+                    ({item.reviews} نظر)
                   </span>
                 </div>
 

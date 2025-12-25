@@ -25,7 +25,7 @@ import { Store, LogIn, User } from "lucide-react";
 const BASE_API = `${process.env.NEXT_PUBLIC_API_URL}`;
 
 export default function Header() {
-  const [cartCount, setCartCount] = useState(0);
+  const [cartCount, setCartCount] = useState(4);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -109,15 +109,6 @@ export default function Header() {
 
   const handleLogoutConfirm = async () => {
     try {
-      // let response;
-
-      // // Determine which logout endpoint to call based on current user type
-      // if (user) {
-      //   response = await fetch("/api/auth/user-logout", { method: "POST" });
-      // } else if (storeOwner) {
-      //   response = await fetch("/api/auth/session", { method: "DELETE" });
-      // }
-
       localStorage.removeItem("accessToken");
       localStorage.removeItem("user");
 
@@ -396,6 +387,23 @@ export default function Header() {
                 </div>
               </div>
 
+              {/* Cart with Enhanced Design */}
+              <div className="relative group">
+                <button className="flex items-center justify-center w-12 h-12 text-gray-600 hover:text-red-600 hover:bg-purple-50 rounded-xl transition-all duration-200 relative">
+                  <FiHeart className="w-5 h-5" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1 -left-1 bg-pink-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-lg transform group-hover:scale-110 transition-transform duration-200">
+                      {cartCount-2}
+                    </span>
+                  )}
+                </button>
+
+                {/* Cart Tooltip */}
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap">
+                  علاقه‌مندی‌ها
+                </div>
+              </div>
+
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -530,7 +538,7 @@ export default function Header() {
               </div>
 
               {/* Mobile Quick Actions */}
-              {/* <div className="flex space-x-4 pt-4 border-t border-gray-200">
+              <div className="flex flex-col gap-y-2 space-x-4 pt-4 border-t border-gray-200">
                 <button className="flex-1 flex items-center justify-center space-x-2 py-3 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all duration-200">
                   <FiHeart className="w-4 h-4" />
                   <span className="text-sm font-medium">علاقه‌مندی‌ها</span>
@@ -539,7 +547,7 @@ export default function Header() {
                   <FiShoppingCart className="w-4 h-4" />
                   <span className="text-sm font-medium">سبد خرید</span>
                 </button>
-              </div> */}
+              </div>
             </div>
           </div>
         )}
