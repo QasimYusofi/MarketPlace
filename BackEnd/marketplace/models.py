@@ -35,6 +35,7 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_verified", True)
+        extra_fields.setdefault("user_type", "admin")
 
         if extra_fields.get("is_staff") is not True:
             raise ValueError("Superuser must have is_staff=True.")
@@ -53,7 +54,7 @@ class BaseUser(AbstractBaseUser, PermissionsMixin):
 
     user_type = models.CharField(
         max_length=20,
-        choices=[('customer', 'Customer'), ('store_owner', 'Store Owner')],
+        choices=[('customer', 'Customer'), ('store_owner', 'Store Owner'), ('admin', 'Admin')],
         default='customer',
     )
 
