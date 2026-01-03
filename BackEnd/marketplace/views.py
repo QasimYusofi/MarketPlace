@@ -368,7 +368,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             return [IsCustomerOrAdmin()]
         if self.action in ['store_products']:
             # Authenticated users can fetch products by store owner
-            return [permissions.IsAuthenticated()]
+            return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
