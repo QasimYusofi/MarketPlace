@@ -1,7 +1,7 @@
 // app/cart/page.js
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -10,283 +10,472 @@ import {
   Plus,
   Minus,
   Heart,
-  ArrowLeft,
+  ArrowRight,
   Truck,
   Shield,
-  RefreshCw,
   Package,
   CreditCard,
-  Percent,
   Tag,
-  ArrowRight,
   Clock,
   AlertCircle,
   Image as ImageIcon,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  Store,
+  ChevronLeft,
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
-const BASE_API = process.env.NEXT_PUBLIC_API_URL;
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+const MEDIA_BASE_URL = "http://127.0.0.1:8000";
+
+// Utility Functions
+const getAuthToken = () => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("accessToken");
+  }
+  return null;
+};
+
+const formatPrice = (price) => {
+  if (!price && price !== 0) return "۰ تومان";
+  return new Intl.NumberFormat("fa-IR").format(Math.round(price)) + " تومان";
+};
+
+const parsePrice = (price) => {
+  if (typeof price === "string") {
+    return parseFloat(price);
+  }
+  return price || 0;
+};
+
+const getFullImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+
+  if (imagePath.startsWith("http")) {
+    return imagePath;
+  }
+
+  if (imagePath.startsWith("/media/")) {
+    return `${MEDIA_BASE_URL}${imagePath}`;
+  }
+
+  if (imagePath.startsWith("/")) {
+    return `${MEDIA_BASE_URL}/media${imagePath}`;
+  }
+
+  return `${MEDIA_BASE_URL}/media/${imagePath}`;
+};
 
 export default function CartPage() {
   const router = useRouter();
-  const [cartItems, setCartItems] = useState([]);
+  const [cart, setCart] = useState(null);
+  const [products, setProducts] = useState({});
   const [loading, setLoading] = useState(true);
-  const [updatingItems, setUpdatingItems] = useState({});
+  const [loadingStates, setLoadingStates] = useState({
+    cart: true,
+    products: {},
+    updating: {},
+  });
   const [couponCode, setCouponCode] = useState("");
-  const [applyingCoupon, setApplyingCoupon] = useState(false);
-  const [couponApplied, setCouponApplied] = useState(false);
-  const [couponDiscount, setCouponDiscount] = useState(0);
   const [selectedItems, setSelectedItems] = useState([]);
+  const [shippingCost, setShippingCost] = useState(25000);
+  const [storeDetails, setStoreDetails] = useState({});
   const [imageErrors, setImageErrors] = useState({});
 
-  useEffect(() => {
-    fetchCartItems();
-  }, []);
+  // Fetch cart data
+  const fetchCart = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) {
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
+      router.push("/auth/user-login");
+      return;
+    }
 
-  const fetchCartItems = async () => {
     try {
-      // Mock data - replace with actual API call
-      const mockCartItems = [
-        {
-          id: 1,
-          product_id: "TS001",
-          name: "تیشرت مردانه تمام پنبه مشکی",
-          price: 159000,
-          original_price: 220000,
-          quantity: 2,
-          image:
-            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
-          in_stock: true,
-          max_quantity: 10,
-          color: "مشکی",
-          size: "L",
-          seller: "فروشگاه پوشاک البرز",
-          shipping_time: "۱-۲ روز کاری",
-          free_shipping: true,
+      setLoadingStates((prev) => ({ ...prev, cart: true }));
+      const response = await fetch(`${API_BASE_URL}/carts/me/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-        {
-          id: 2,
-          product_id: "CT002",
-          name: "کاپشن مردانه زمستانه سرمه‌ای",
-          price: 450000,
-          original_price: 550000,
-          quantity: 1,
-          image:
-            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
-          in_stock: true,
-          max_quantity: 5,
-          color: "سرمه‌ای",
-          size: "XL",
-          seller: "فروشگاه پوشاک زمستانی",
-          shipping_time: "۲-۳ روز کاری",
-          free_shipping: false,
-          shipping_cost: 25000,
-        },
-        {
-          id: 3,
-          product_id: "PN003",
-          name: "پیراهن مردانه رسمی سفید",
-          price: 320000,
-          original_price: 400000,
-          quantity: 1,
-          image:
-            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
-          in_stock: false,
-          max_quantity: 0,
-          color: "سفید",
-          size: "M",
-          seller: "فروشگاه پوشاک رسمی",
-          shipping_time: "ناموجود",
-          free_shipping: true,
-        },
-        {
-          id: 4,
-          product_id: "SW004",
-          name: "سویشرت مردانه ورزشی خاکستری",
-          price: 280000,
-          original_price: 350000,
-          quantity: 3,
-          image:
-            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
-          in_stock: true,
-          max_quantity: 8,
-          color: "خاکستری",
-          size: "L",
-          seller: "فروشگاه ورزشی",
-          shipping_time: "۲-۳ روز کاری",
-          free_shipping: true,
-        },
-        {
-          id: 5,
-          product_id: "SH005",
-          name: "شلوار جین مردانه آبی",
-          price: 180000,
-          original_price: 250000,
-          quantity: 1,
-          image:
-            "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
-          in_stock: true,
-          max_quantity: 6,
-          color: "آبی",
-          size: "32",
-          seller: "فروشگاه شلوار جین",
-          shipping_time: "۱-۲ روز کاری",
-          free_shipping: false,
-          shipping_cost: 15000,
-        },
-      ];
+      });
 
-      setCartItems(mockCartItems);
-      // Select all in-stock items by default
-      const inStockItems = mockCartItems
-        .filter((item) => item.in_stock)
-        .map((item) => item.id);
-      setSelectedItems(inStockItems);
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem("accessToken");
+          toast.error("لطفا مجددا وارد حساب کاربری خود شوید");
+          router.push("/auth/user-login");
+          return;
+        }
+        if (response.status === 404) {
+          setCart({ items: [] });
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const cartData = await response.json();
+      console.log("Cart data received:", cartData);
+      setCart(cartData);
+
+      await fetchProductDetails(cartData.items);
+
+      // Select all items by default (only available ones)
+      if (cartData.items?.length > 0) {
+        // We'll fetch product details first, then select available ones
+      }
     } catch (error) {
-      console.error("Cart fetch error:", error);
+      console.error("Error fetching cart:", error);
       toast.error("خطا در دریافت سبد خرید");
     } finally {
+      setLoadingStates((prev) => ({ ...prev, cart: false }));
       setLoading(false);
+    }
+  }, [router]);
+
+  // Fetch product details with images
+  const fetchProductDetails = async (items) => {
+    if (!items || items.length === 0) return;
+
+    const productPromises = items.map(async (item) => {
+      const productId = item.product_id;
+      if (!productId || products[productId]) return;
+
+      setLoadingStates((prev) => ({
+        ...prev,
+        products: { ...prev.products, [productId]: true },
+      }));
+
+      try {
+        const productResponse = await fetch(
+          `${API_BASE_URL}/products/${productId}/`
+        );
+        if (!productResponse.ok) {
+          return null;
+        }
+
+        const productData = await productResponse.json();
+        console.log(`Product ${productId} data:`, productData);
+
+        if (productData.images && Array.isArray(productData.images)) {
+          productData.images = productData.images.map((img) => {
+            if (typeof img === "string") {
+              return { url: getFullImageUrl(img) };
+            } else if (img.image) {
+              return { ...img, url: getFullImageUrl(img.image) };
+            } else if (img.url) {
+              return { ...img, url: getFullImageUrl(img.url) };
+            }
+            return img;
+          });
+        }
+
+        if (item.owner_store_id && !storeDetails[item.owner_store_id]) {
+          await fetchStoreDetails(item.owner_store_id);
+        }
+
+        return { productId, productData };
+      } catch (error) {
+        console.error(`Error fetching product ${productId}:`, error);
+        return null;
+      } finally {
+        setLoadingStates((prev) => ({
+          ...prev,
+          products: { ...prev.products, [productId]: false },
+        }));
+      }
+    });
+
+    const results = await Promise.all(productPromises);
+    const newProducts = { ...products };
+
+    results.forEach((result) => {
+      if (result && result.productData) {
+        newProducts[result.productId] = result.productData;
+      }
+    });
+
+    setProducts(newProducts);
+
+    // After fetching products, select available ones by default
+    if (items.length > 0) {
+      const availableItems = items
+        .filter((item) => {
+          const product = newProducts[item.product_id];
+          return product && product.stock > 0;
+        })
+        .map((item) => item.id || item._id);
+
+      setSelectedItems(availableItems);
     }
   };
 
+  // Fetch store details
+  const fetchStoreDetails = async (storeId) => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_BASE_URL}/store-owners/${storeId}/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const storeData = await response.json();
+        setStoreDetails((prev) => ({
+          ...prev,
+          [storeId]: storeData,
+        }));
+      }
+    } catch (error) {
+      console.error(`Error fetching store ${storeId}:`, error);
+    }
+  };
+
+  // Get product image URL
+  const getProductImageUrl = (product) => {
+    if (!product) return null;
+
+    if (
+      product.images &&
+      Array.isArray(product.images) &&
+      product.images.length > 0
+    ) {
+      const primaryImage =
+        product.images.find((img) => img.is_primary) || product.images[0];
+      if (primaryImage?.url) {
+        return primaryImage.url;
+      }
+    }
+
+    if (product.image) {
+      if (typeof product.image === "string") {
+        return getFullImageUrl(product.image);
+      }
+      if (product.image.url) {
+        return getFullImageUrl(product.image.url);
+      }
+    }
+
+    return null;
+  };
+
+  // Handle image error
+  const handleImageError = (itemId, e) => {
+    setImageErrors((prev) => ({ ...prev, [itemId]: true }));
+    const parent = e.target.parentElement;
+    if (parent) {
+      parent.innerHTML = `
+        <div class="flex flex-col items-center justify-center w-full h-full">
+          <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          </svg>
+          <span class="text-xs text-gray-500">بدون تصویر</span>
+        </div>
+      `;
+    }
+  };
+
+  // Calculate totals
   const calculateTotals = () => {
-    const selectedCartItems = cartItems.filter((item) =>
-      selectedItems.includes(item.id)
+    if (!cart?.items) {
+      return {
+        subtotal: 0,
+        shipping: 0,
+        discount: 0,
+        total: 0,
+        itemsCount: 0,
+        productsCount: 0,
+      };
+    }
+
+    const selectedCartItems = cart.items.filter((item) =>
+      selectedItems.includes(item.id || item._id)
     );
 
-    const subtotal = selectedCartItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
-    const shipping = selectedCartItems.reduce((sum, item) => {
-      if (item.free_shipping) return sum;
-      return sum + (item.shipping_cost || 0);
-    }, 0);
-    const discount =
-      selectedCartItems.reduce((sum, item) => {
-        if (item.original_price > item.price) {
-          return sum + (item.original_price - item.price) * item.quantity;
+    let subtotal = 0;
+    let itemsCount = 0;
+    let productDiscount = 0;
+
+    selectedCartItems.forEach((item) => {
+      const product = products[item.product_id];
+      const price = parsePrice(item.price_snapshot);
+      const quantity = item.quantity || 1;
+
+      subtotal += price * quantity;
+      itemsCount += quantity;
+
+      if (product?.compare_price) {
+        const comparePrice = parsePrice(product.compare_price);
+        if (comparePrice > price) {
+          productDiscount += (comparePrice - price) * quantity;
         }
-        return sum;
-      }, 0) + couponDiscount;
+      }
+    });
 
-    const total = subtotal + shipping - discount;
+    const shipping = subtotal > 500000 ? 0 : shippingCost;
+    const total = Math.max(0, subtotal + shipping - productDiscount);
 
     return {
       subtotal,
       shipping,
-      discount,
+      discount: productDiscount,
       total,
-      itemsCount: selectedCartItems.reduce(
-        (sum, item) => sum + item.quantity,
-        0
-      ),
+      itemsCount,
       productsCount: selectedCartItems.length,
     };
   };
 
-  const handleQuantityChange = async (itemId, newQuantity) => {
+  // Handle quantity change
+  const handleQuantityChange = async (item, newQuantity) => {
     if (newQuantity < 1) return;
 
-    const item = cartItems.find((item) => item.id === itemId);
-    if (newQuantity > item.max_quantity) {
-      toast.error(`حداکثر تعداد موجود: ${item.max_quantity}`);
+    const product = products[item.product_id];
+    if (product && newQuantity > (product.stock || 99)) {
+      toast.error(`حداکثر تعداد موجود: ${product.stock}`);
       return;
     }
 
-    setUpdatingItems((prev) => ({ ...prev, [itemId]: true }));
+    const itemId = item.id || item._id;
+    setLoadingStates((prev) => ({
+      ...prev,
+      updating: { ...prev.updating, [itemId]: true },
+    }));
 
     try {
-      // API call to update quantity
-      // await fetch(`${BASE_API}/cart/update/${itemId}/`, {
-      //   method: "PUT",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ quantity: newQuantity }),
-      // });
-
-      setCartItems((prev) =>
-        prev.map((item) =>
-          item.id === itemId ? { ...item, quantity: newQuantity } : item
-        )
+      const token = getAuthToken();
+      const response = await fetch(
+        `${API_BASE_URL}/carts/me/update-item/${item.product_id}/`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            quantity: newQuantity,
+            color: item.color,
+            size: item.size,
+          }),
+        }
       );
 
-      toast.success("تعداد به‌روزرسانی شد");
+      if (response.ok) {
+        await fetchCart();
+        toast.success("تعداد به‌روزرسانی شد");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.detail || "خطا در به‌روزرسانی");
+      }
     } catch (error) {
-      console.error("Quantity update error:", error);
-      toast.error("خطا در به‌روزرسانی تعداد");
+      console.error("Error updating quantity:", error);
+      toast.error("خطا در ارتباط با سرور");
     } finally {
-      setUpdatingItems((prev) => ({ ...prev, [itemId]: false }));
+      setLoadingStates((prev) => ({
+        ...prev,
+        updating: { ...prev.updating, [itemId]: false },
+      }));
     }
   };
 
-  const handleRemoveItem = async (itemId) => {
+  // Handle remove item
+  const handleRemoveItem = async (item) => {
     if (!confirm("آیا از حذف این محصول از سبد خرید مطمئن هستید؟")) return;
 
     try {
-      // API call to remove item
-      // await fetch(`${BASE_API}/cart/remove/${itemId}/`, { method: "DELETE" });
+      const token = getAuthToken();
+      const response = await fetch(
+        `${API_BASE_URL}/carts/me/remove-item/${item.product_id}/`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-      setCartItems((prev) => prev.filter((item) => item.id !== itemId));
-      setSelectedItems((prev) => prev.filter((id) => id !== itemId));
-      toast.success("محصول از سبد خرید حذف شد");
+      if (response.ok) {
+        await fetchCart();
+        // Remove from selected items
+        setSelectedItems((prev) =>
+          prev.filter((id) => id !== (item.id || item._id))
+        );
+        toast.success("محصول از سبد خرید حذف شد");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.detail || "خطا در حذف محصول");
+      }
     } catch (error) {
-      console.error("Remove item error:", error);
-      toast.error("خطا در حذف محصول");
+      console.error("Error removing item:", error);
+      toast.error("خطا در ارتباط با سرور");
     }
   };
 
-  const handleMoveToWishlist = async (itemId) => {
+  // Handle move to wishlist
+  const handleMoveToWishlist = async (productId) => {
     try {
-      // API call to move to wishlist
-      // await fetch(`${BASE_API}/wishlist/add/${itemId}/`, { method: "POST" });
+      const token = getAuthToken();
+      const response = await fetch(`${API_BASE_URL}/wishlists/me/add/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ product_id: productId }),
+      });
 
-      setCartItems((prev) => prev.filter((item) => item.id !== itemId));
-      setSelectedItems((prev) => prev.filter((id) => id !== itemId));
-      toast.success("به لیست علاقه‌مندی‌ها منتقل شد");
+      if (response.ok) {
+        toast.success("به لیست علاقه‌مندی‌ها منتقل شد");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.detail || "خطا در انتقال");
+      }
     } catch (error) {
-      console.error("Move to wishlist error:", error);
-      toast.error("خطا در انتقال به علاقه‌مندی‌ها");
+      console.error("Error moving to wishlist:", error);
+      toast.error("خطا در ارتباط با سرور");
     }
   };
 
+  // Handle apply coupon
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) {
       toast.error("لطفا کد تخفیف را وارد کنید");
       return;
     }
 
-    setApplyingCoupon(true);
-
     try {
-      // API call to validate coupon
-      // const response = await fetch(`${BASE_API}/coupons/validate/`, {
+      const token = getAuthToken();
+      // Note: You need to implement this endpoint in your backend
+      // For now, show a message
+      toast.error("سیستم کد تخفیف به زودی راه‌اندازی خواهد شد");
+
+      // Uncomment when you implement the coupon API
+      // const response = await fetch(`${API_BASE_URL}/coupons/apply/`, {
       //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
+      //   headers: {
+      //     "Authorization": `Bearer ${token}`,
+      //     "Content-Type": "application/json",
+      //   },
       //   body: JSON.stringify({ code: couponCode }),
       // });
-
-      // Mock success
-      setTimeout(() => {
-        setCouponApplied(true);
-        setCouponDiscount(50000); // 50,000 Tomans discount
-        toast.success("کد تخفیف با موفقیت اعمال شد");
-      }, 1000);
+      //
+      // if (response.ok) {
+      //   const result = await response.json();
+      //   toast.success("کد تخفیف با موفقیت اعمال شد");
+      //   await fetchCart();
+      // } else {
+      //   const errorData = await response.json();
+      //   toast.error(errorData.detail || "کد تخفیف نامعتبر است");
+      // }
     } catch (error) {
-      console.error("Coupon apply error:", error);
-      toast.error("کد تخفیف نامعتبر است");
-    } finally {
-      setApplyingCoupon(false);
+      console.error("Error applying coupon:", error);
+      toast.error("خطا در اعمال کد تخفیف");
     }
   };
 
-  const handleRemoveCoupon = () => {
-    setCouponApplied(false);
-    setCouponCode("");
-    setCouponDiscount(0);
-    toast.success("کد تخفیف حذف شد");
-  };
-
+  // Handle item selection
   const handleSelectItem = (itemId) => {
     setSelectedItems((prev) =>
       prev.includes(itemId)
@@ -295,58 +484,146 @@ export default function CartPage() {
     );
   };
 
+  // Handle select all
   const handleSelectAll = () => {
-    const inStockItems = cartItems
-      .filter((item) => item.in_stock)
-      .map((item) => item.id);
+    if (!cart?.items) return;
 
-    if (selectedItems.length === inStockItems.length) {
+    const availableItems = cart.items
+      .filter((item) => {
+        const product = products[item.product_id];
+        return product && product.stock > 0;
+      })
+      .map((item) => item.id || item._id);
+
+    if (
+      selectedItems.length === availableItems.length &&
+      availableItems.length > 0
+    ) {
+      // Deselect all
       setSelectedItems([]);
     } else {
-      setSelectedItems(inStockItems);
+      // Select all available items
+      setSelectedItems(availableItems);
     }
   };
 
+  // Handle clear cart
+  const handleClearCart = async () => {
+    if (!confirm("آیا از حذف همه محصولات از سبد خرید مطمئن هستید؟")) return;
+
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_BASE_URL}/carts/me/clear/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        await fetchCart();
+        setSelectedItems([]);
+        toast.success("سبد خرید خالی شد");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.detail || "خطا در خالی کردن سبد خرید");
+      }
+    } catch (error) {
+      console.error("Error clearing cart:", error);
+      toast.error("خطا در ارتباط با سرور");
+    }
+  };
+
+  // Handle proceed to checkout
   const handleProceedToCheckout = () => {
     if (selectedItems.length === 0) {
       toast.error("لطفا حداقل یک محصول را انتخاب کنید");
       return;
     }
 
-    // Save selected items to localStorage or context for checkout
-    const selectedCartItems = cartItems.filter((item) =>
-      selectedItems.includes(item.id)
-    );
-    localStorage.setItem("checkoutItems", JSON.stringify(selectedCartItems));
+    const selectedCartItems =
+      cart?.items.filter((item) =>
+        selectedItems.includes(item.id || item._id)
+      ) || [];
 
+    // Prepare checkout data
+    const checkoutData = {
+      items: selectedCartItems.map((item) => ({
+        cart_item_id: item.id || item._id,
+        product_id: item.product_id,
+        product: products[item.product_id] || null,
+        quantity: item.quantity || 1,
+        price_snapshot: parsePrice(item.price_snapshot),
+        color: item.color,
+        size: item.size,
+        owner_store_id: item.owner_store_id,
+        store: storeDetails[item.owner_store_id] || null,
+      })),
+      totals: calculateTotals(),
+      timestamp: Date.now(),
+    };
+
+    console.log("Checkout data prepared:", checkoutData);
+    localStorage.setItem("checkoutData", JSON.stringify(checkoutData));
     router.push("/checkout");
   };
 
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat("fa-IR").format(price) + " تومان";
-  };
-
-  const handleImageError = (itemId) => {
-    setImageErrors((prev) => ({
-      ...prev,
-      [itemId]: true,
-    }));
-  };
+  // Initialize
+  useEffect(() => {
+    fetchCart();
+  }, [fetchCart]);
 
   const { subtotal, shipping, discount, total, itemsCount, productsCount } =
     calculateTotals();
 
-  if (loading) {
+  // Check if all available items are selected
+  const allAvailableSelected = () => {
+    if (!cart?.items) return false;
+
+    const availableItems = cart.items
+      .filter((item) => {
+        const product = products[item.product_id];
+        return product && product.stock > 0;
+      })
+      .map((item) => item.id || item._id);
+
     return (
-      <div className="min-h-screen bg-gray-50 py-12">
-        <div className="container mx-auto px-4">
-          <div className="max-w-6xl mx-auto">
-            <div className="animate-pulse space-y-6">
-              <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-              <div className="h-64 bg-gray-200 rounded"></div>
-              <div className="h-32 bg-gray-200 rounded"></div>
-            </div>
-          </div>
+      availableItems.length > 0 &&
+      selectedItems.length === availableItems.length &&
+      availableItems.every((id) => selectedItems.includes(id))
+    );
+  };
+
+  // Loading state
+  if (loadingStates.cart && !cart) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">در حال بارگذاری سبد خرید...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // No auth state
+  if (!getAuthToken()) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <AlertCircle className="w-20 h-20 text-red-400 mx-auto mb-6" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            نیاز به ورود به حساب کاربری
+          </h2>
+          <p className="text-gray-600 mb-8">
+            برای مشاهده سبد خرید، لطفا وارد حساب کاربری خود شوید
+          </p>
+          <button
+            onClick={() => router.push("/auth/user-login")}
+            className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors w-full"
+          >
+            ورود به حساب کاربری
+          </button>
         </div>
       </div>
     );
@@ -361,288 +638,310 @@ export default function CartPage() {
           style: {
             fontFamily: "var(--font-vazirmatn), sans-serif",
             direction: "rtl",
+            borderRadius: "10px",
+            background: "#333",
+            color: "#fff",
           },
         }}
       />
 
-      <div className="min-h-screen bg-gray-50 py-12 font-vazirmatn" dir="rtl">
+      <div className="min-h-screen bg-gray-50 py-8 font-vazirmatn" dir="rtl">
         <div className="container mx-auto px-4">
-          <div className="max-w-6xl mx-auto">
-            {/* Header */}
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">سبد خرید</h1>
-                  <p className="text-gray-600 mt-1">
-                    {cartItems.length} محصول در سبد خرید شما
-                  </p>
-                </div>
-              </div>
-
-              {/* Progress Steps */}
-              <div className="flex items-center justify-center mb-8">
-                <div className="flex items-center">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center">
-                      ۱
-                    </div>
-                    <span className="mr-2 font-medium text-blue-600">
-                      سبد خرید
-                    </span>
-                  </div>
-                  <div className="w-16 h-0.5 bg-gray-300 mx-4"></div>
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-gray-300 text-gray-600 rounded-full flex items-center justify-center">
-                      ۲
-                    </div>
-                    <span className="mr-2 text-gray-500">تکمیل اطلاعات</span>
-                  </div>
-                  <div className="w-16 h-0.5 bg-gray-300 mx-4"></div>
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-gray-300 text-gray-600 rounded-full flex items-center justify-center">
-                      ۳
-                    </div>
-                    <span className="mr-2 text-gray-500">پرداخت</span>
-                  </div>
-                </div>
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                  سبد خرید
+                </h1>
+                <p className="text-gray-600 mt-2">
+                  {cart?.items?.length || 0} محصول در سبد خرید شما
+                </p>
               </div>
             </div>
+          </div>
 
-            {cartItems.length === 0 ? (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
-                <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <ShoppingCart className="w-12 h-12 text-gray-400" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                  سبد خرید شما خالی است
-                </h2>
-                <p className="text-gray-600 mb-8">
-                  می‌توانید از بین هزاران محصول موجود، خرید خود را شروع کنید
-                </p>
-                <Link
-                  href="/products"
-                  className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  شروع خرید
-                  <ArrowRight className="w-4 h-4 mr-2" />
-                </Link>
+          {!cart?.items || cart.items.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 md:p-12 text-center">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <ShoppingCart className="w-10 h-10 text-gray-400" />
               </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column - Cart Items */}
-                <div className="lg:col-span-2">
-                  {/* Cart Header */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id="select-all"
-                          checked={
-                            selectedItems.length ===
-                            cartItems.filter((item) => item.in_stock).length
-                          }
-                          onChange={handleSelectAll}
-                          className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label
-                          htmlFor="select-all"
-                          className="mr-3 font-medium text-gray-900"
-                        >
-                          انتخاب همه (
-                          {cartItems.filter((item) => item.in_stock).length})
-                        </label>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {selectedItems.length} محصول انتخاب شده
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Cart Items List */}
-                  <div className="space-y-4">
-                    {cartItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden"
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-3">
+                سبد خرید شما خالی است
+              </h2>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                می‌توانید از بین هزاران محصول موجود، خرید خود را شروع کنید
+              </p>
+              <Link
+                href="/"
+                className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                شروع خرید
+                <ArrowRight className="w-4 h-4 mr-2" />
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Cart Items */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Cart Header */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="select-all"
+                        checked={allAvailableSelected()}
+                        onChange={handleSelectAll}
+                        className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                      />
+                      <label
+                        htmlFor="select-all"
+                        className="mr-3 font-medium text-gray-900 cursor-pointer"
                       >
+                        انتخاب همه (
+                        {
+                          cart.items.filter((item) => {
+                            const product = products[item.product_id];
+                            return product && product.stock > 0;
+                          }).length
+                        }
+                        )
+                      </label>
+                    </div>
+                    <button
+                      onClick={handleClearCart}
+                      className="flex items-center text-red-600 hover:text-red-700 text-sm"
+                    >
+                      <Trash2 className="w-4 h-4 ml-1" />
+                      خالی کردن سبد خرید
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cart Items List */}
+                <div className="space-y-4">
+                  {cart.items.map((item) => {
+                    const product = products[item.product_id];
+                    const isLoading = loadingStates.products[item.product_id];
+                    const isUpdating =
+                      loadingStates.updating[item.id || item._id];
+                    const itemId = item.id || item._id;
+                    const isSelected = selectedItems.includes(itemId);
+                    const itemPrice = parsePrice(item.price_snapshot);
+                    const itemTotal = itemPrice * (item.quantity || 1);
+                    const store = storeDetails[item.owner_store_id];
+                    const imageUrl = getProductImageUrl(product);
+                    const hasImageError = imageErrors[itemId];
+                    const isAvailable = product && product.stock > 0;
+
+                    return (
+                      <div
+                        key={itemId}
+                        className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all duration-200 ${
+                          isSelected
+                            ? "border-blue-500 ring-1 ring-blue-500"
+                            : "border-gray-200"
+                        } ${!isAvailable ? "opacity-60" : ""}`}
+                      >
+                        {/* Store Header */}
+                        {store && (
+                          <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex items-center">
+                            <Store className="w-4 h-4 text-gray-500 ml-2" />
+                            <span className="text-sm text-gray-700">
+                              فروشگاه:{" "}
+                              {store.store_name ||
+                                `${store.first_name} ${store.last_name}`}
+                            </span>
+                          </div>
+                        )}
+
                         <div className="p-6">
-                          <div className="flex flex-col md:flex-row md:items-start space-y-4 md:space-y-0 md:space-x-4 md:space-x-reverse">
-                            {/* Selection Checkbox */}
-                            <div className="flex items-start">
+                          <div className="flex flex-col md:flex-row gap-6">
+                            {/* Selection & Image */}
+                            <div className="flex flex-col items-start gap-4">
                               <input
                                 type="checkbox"
-                                checked={selectedItems.includes(item.id)}
-                                onChange={() => handleSelectItem(item.id)}
-                                disabled={!item.in_stock}
-                                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 mt-1"
+                                checked={isSelected}
+                                onChange={() => handleSelectItem(itemId)}
+                                disabled={!isAvailable}
+                                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                               />
-                            </div>
-
-                            {/* Product Image */}
-                            <div className="w-36 h-full bg-red-300 overflow-hidden flex items-center justify-center flex-shrink-0 mx-4">
-                              {imageErrors[item.id] ? (
-                                <div className="flex flex-col items-center justify-center w-full h-full bg-gray-200">
-                                  <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
-                                  <span className="text-xs text-gray-500">
-                                    تصویر بارگذاری نشد
-                                  </span>
-                                </div>
-                              ) : (
-                                <img
-                                  src={item.image}
-                                  alt={item.name}
-                                  className="w-full h-full object-cover"
-                                  onError={() => handleImageError(item.id)}
-                                />
-                              )}
+                              <div className="w-32 h-32 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
+                                {isLoading ? (
+                                  <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+                                ) : imageUrl && !hasImageError ? (
+                                  <img
+                                    src={imageUrl}
+                                    alt={product?.title || "محصول"}
+                                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                                    onError={(e) => handleImageError(itemId, e)}
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center w-full h-full">
+                                    <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
+                                    <span className="text-xs text-gray-500">
+                                      بدون تصویر
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
 
                             {/* Product Info */}
                             <div className="flex-1">
-                              <div className="flex flex-col md:flex-row md:items-start md:justify-between">
-                                <div>
-                                  <Link
-                                    href={`/products/${item.product_id}`}
-                                    className="font-medium text-gray-900 hover:text-blue-600 text-lg"
-                                  >
-                                    {item.name}
-                                  </Link>
+                              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                                <div className="flex-1">
+                                  {isLoading ? (
+                                    <div className="h-6 bg-gray-200 rounded w-48 mb-2 animate-pulse"></div>
+                                  ) : (
+                                    <Link
+                                      href={`/product/${item.product_id}`}
+                                      className="font-medium text-gray-900 hover:text-blue-600 text-lg block mb-2"
+                                    >
+                                      {product?.title || "در حال بارگذاری..."}
+                                    </Link>
+                                  )}
 
                                   {/* Product Attributes */}
-                                  <div className="flex flex-wrap gap-2 mt-2">
+                                  <div className="flex flex-wrap gap-2 mt-3">
                                     {item.color && (
-                                      <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                                      <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full">
                                         رنگ: {item.color}
                                       </span>
                                     )}
                                     {item.size && (
-                                      <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                                      <span className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full">
                                         سایز: {item.size}
                                       </span>
                                     )}
                                   </div>
 
-                                  {/* Seller Info */}
-                                  <div className="flex items-center mt-2 text-sm text-gray-600">
-                                    <span>فروشنده: {item.seller}</span>
-                                    <div className="w-1 h-1 bg-gray-400 rounded-full mx-2"></div>
-                                    <span className="flex items-center">
-                                      <Clock className="w-3 h-3 ml-1" />
-                                      ارسال: {item.shipping_time}
-                                    </span>
-                                    {item.free_shipping && (
-                                      <span className="mr-3 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">
-                                        ارسال رایگان
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
+                                  {/* Stock Status */}
+                                  {product && (
+                                    <div className="mt-3">
+                                      {isAvailable ? (
+                                        <span className="flex items-center text-green-600 text-sm">
+                                          <CheckCircle className="w-4 h-4 ml-1" />
+                                          موجود در انبار ({product.stock} عدد)
+                                        </span>
+                                      ) : (
+                                        <span className="flex items-center text-red-600 text-sm">
+                                          <XCircle className="w-4 h-4 ml-1" />
+                                          ناموجود
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
 
-                                {/* Price Info */}
-                                <div className="mt-4 md:mt-0 text-left">
-                                  <div className="flex items-center space-x-2 space-x-reverse">
-                                    {item.original_price > item.price && (
-                                      <span className="text-sm text-gray-500 line-through">
-                                        {formatPrice(item.original_price)}
-                                      </span>
-                                    )}
-                                    <span className="font-bold text-gray-900 text-lg">
-                                      {formatPrice(item.price)}
-                                    </span>
-                                  </div>
-                                  {item.original_price > item.price && (
-                                    <div className="mt-1">
-                                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded">
-                                        {Math.round(
-                                          (1 -
-                                            item.price / item.original_price) *
-                                            100
-                                        )}
-                                        % تخفیف
-                                      </span>
+                                  {/* Product SKU */}
+                                  {product?.sku && (
+                                    <div className="mt-2 text-sm text-gray-500">
+                                      کد محصول: {product.sku}
                                     </div>
                                   )}
                                 </div>
-                              </div>
 
-                              {/* Stock Status */}
-                              {!item.in_stock && (
-                                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                                  <div className="flex items-center">
-                                    <AlertCircle className="w-5 h-5 text-red-500 ml-2" />
-                                    <span className="text-red-700">
-                                      این محصول در حال حاضر موجود نیست
-                                    </span>
+                                {/* Price Info */}
+                                <div className="text-left min-w-[120px]">
+                                  <div className="space-y-1">
+                                    <div className="font-bold text-gray-900 text-lg">
+                                      {formatPrice(itemPrice)}
+                                    </div>
+                                    {product?.compare_price &&
+                                      parsePrice(product.compare_price) >
+                                        itemPrice && (
+                                        <div className="text-sm text-gray-500 line-through">
+                                          {formatPrice(
+                                            parsePrice(product.compare_price)
+                                          )}
+                                        </div>
+                                      )}
+                                  </div>
+                                  <div className="mt-2 text-sm text-gray-600">
+                                    × {item.quantity || 1}
                                   </div>
                                 </div>
-                              )}
+                              </div>
 
                               {/* Actions */}
-                              <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-100">
+                              <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
                                 {/* Quantity Controls */}
                                 <div className="flex items-center">
                                   <button
                                     onClick={() =>
                                       handleQuantityChange(
-                                        item.id,
-                                        item.quantity - 1
+                                        item,
+                                        (item.quantity || 1) - 1
                                       )
                                     }
                                     disabled={
-                                      item.quantity <= 1 ||
-                                      updatingItems[item.id]
+                                      isUpdating ||
+                                      (item.quantity || 1) <= 1 ||
+                                      !isAvailable
                                     }
-                                    className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                   >
-                                    <Minus className="w-4 h-4" />
+                                    {isUpdating ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <Minus className="w-4 h-4" />
+                                    )}
                                   </button>
                                   <div className="w-16 h-10 flex items-center justify-center border-t border-b border-gray-300">
-                                    {updatingItems[item.id] ? (
-                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                                    ) : (
-                                      <span className="font-medium">
-                                        {item.quantity}
-                                      </span>
-                                    )}
+                                    <span className="font-medium">
+                                      {item.quantity || 1}
+                                    </span>
                                   </div>
                                   <button
                                     onClick={() =>
                                       handleQuantityChange(
-                                        item.id,
-                                        item.quantity + 1
+                                        item,
+                                        (item.quantity || 1) + 1
                                       )
                                     }
                                     disabled={
-                                      item.quantity >= item.max_quantity ||
-                                      updatingItems[item.id]
+                                      isUpdating ||
+                                      !isAvailable ||
+                                      (item.quantity || 1) >=
+                                        (product?.stock || 99)
                                     }
-                                    className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-10 h-10 flex items-center justify-center border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                   >
-                                    <Plus className="w-4 h-4" />
+                                    {isUpdating ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <Plus className="w-4 h-4" />
+                                    )}
                                   </button>
-                                  <span className="mr-4 text-sm text-gray-500">
-                                    موجودی: {item.max_quantity}
-                                  </span>
                                 </div>
 
                                 {/* Action Buttons */}
-                                <div className="flex items-center space-x-3 space-x-reverse">
+                                <div className="flex items-center space-x-4 space-x-reverse">
                                   <button
                                     onClick={() =>
-                                      handleMoveToWishlist(item.id)
+                                      handleMoveToWishlist(item.product_id)
                                     }
-                                    className="flex items-center text-gray-600 hover:text-red-500 transition-colors"
+                                    disabled={isUpdating || !product}
+                                    className="flex items-center text-gray-600 hover:text-red-500 transition-colors disabled:opacity-50 p-2 rounded-lg hover:bg-gray-50"
+                                    title="افزودن به علاقه‌مندی‌ها"
                                   >
                                     <Heart className="w-5 h-5 ml-1" />
-                                    ذخیره
+                                    <span className="hidden sm:inline text-sm">
+                                      ذخیره
+                                    </span>
                                   </button>
                                   <button
-                                    onClick={() => handleRemoveItem(item.id)}
-                                    className="flex items-center text-gray-600 hover:text-red-500 transition-colors"
+                                    onClick={() => handleRemoveItem(item)}
+                                    disabled={isUpdating}
+                                    className="flex items-center text-gray-600 hover:text-red-500 transition-colors disabled:opacity-50 p-2 rounded-lg hover:bg-gray-50"
+                                    title="حذف از سبد خرید"
                                   >
                                     <Trash2 className="w-5 h-5 ml-1" />
-                                    حذف
+                                    <span className="hidden sm:inline text-sm">
+                                      حذف
+                                    </span>
                                   </button>
                                 </div>
                               </div>
@@ -656,293 +955,159 @@ export default function CartPage() {
                             <span className="text-gray-600">
                               جمع این محصول:
                             </span>
-                            <span className="font-bold text-gray-900">
-                              {formatPrice(item.price * item.quantity)}
+                            <span className="font-bold text-gray-900 text-lg">
+                              {formatPrice(itemTotal)}
                             </span>
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-
-                  {/* Cart Tips */}
-                  <div className="mt-6 bg-blue-50 border border-blue-200 rounded-2xl p-6">
-                    <h3 className="font-medium text-blue-900 mb-3 flex items-center">
-                      <Shield className="w-5 h-5 ml-2" />
-                      نکات مهم خرید
-                    </h3>
-                    <ul className="space-y-2 text-blue-800 text-sm">
-                      <li className="flex items-start">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 ml-2"></div>
-                        <span>قیمت‌ها شامل مالیات بر ارزش افزوده می‌شوند</span>
-                      </li>
-                      <li className="flex items-start">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 ml-2"></div>
-                        <span>
-                          تا قبل از ارسال می‌توانید سفارش خود را ویرایش یا حذف
-                          کنید
-                        </span>
-                      </li>
-                      <li className="flex items-start">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 ml-2"></div>
-                        <span>گارانتی ۷ روز بازگشت وجه برای تمام محصولات</span>
-                      </li>
-                      <li className="flex items-start">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 ml-2"></div>
-                        <span>
-                          پشتیبانی ۲۴ ساعته برای پاسخگویی به سوالات شما
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
+                    );
+                  })}
                 </div>
 
-                {/* Right Column - Order Summary */}
-                <div className="space-y-6">
-                  {/* Order Summary Card */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 sticky top-6">
-                    <div className="p-6 border-b border-gray-200">
-                      <h2 className="text-lg font-semibold text-gray-900">
-                        خلاصه سفارش
-                      </h2>
-                    </div>
+                {/* Shopping Tips */}
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-6 text-white">
+                  <h3 className="font-semibold text-lg mb-4 flex items-center">
+                    <Shield className="w-5 h-5 ml-2" />
+                    نکات مهم خرید امن
+                  </h3>
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-start">
+                      <div className="w-2 h-2 bg-white rounded-full mt-2 ml-2 flex-shrink-0"></div>
+                      <span>
+                        تا قبل از ارسال می‌توانید سفارش خود را ویرایش یا حذف
+                        کنید
+                      </span>
+                    </li>
+                    <li className="flex items-start">
+                      <div className="w-2 h-2 bg-white rounded-full mt-2 ml-2 flex-shrink-0"></div>
+                      <span>گارانتی ۷ روز بازگشت وجه برای تمام محصولات</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
 
-                    <div className="p-6">
-                      {/* Items Count */}
-                      <div className="flex items-center justify-between mb-4">
+              {/* Order Summary */}
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 sticky top-6">
+                  <div className="p-6 border-b border-gray-200">
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      خلاصه سفارش
+                    </h2>
+                  </div>
+
+                  <div className="p-6">
+                    {/* Summary Items */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
                         <span className="text-gray-600">تعداد کالاها</span>
                         <span className="font-medium text-gray-900">
                           {itemsCount} قلم ({productsCount} محصول)
                         </span>
                       </div>
 
-                      {/* Price Breakdown */}
-                      <div className="space-y-3 border-t border-gray-200 pt-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">جمع کل کالاها</span>
-                          <span className="text-gray-900">
-                            {formatPrice(subtotal)}
-                          </span>
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">جمع کل کالاها</span>
+                        <span className="text-gray-900">
+                          {formatPrice(subtotal)}
+                        </span>
+                      </div>
 
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-600">هزینه ارسال</span>
-                          <span
-                            className={
-                              shipping === 0
-                                ? "text-green-600"
-                                : "text-gray-900"
-                            }
-                          >
-                            {shipping === 0 ? "رایگان" : formatPrice(shipping)}
-                          </span>
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">هزینه ارسال</span>
+                        <span
+                          className={
+                            shipping === 0 ? "text-green-600" : "text-gray-900"
+                          }
+                        >
+                          {shipping === 0 ? "رایگان" : formatPrice(shipping)}
+                        </span>
+                      </div>
 
+                      {discount > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-gray-600">تخفیف کالاها</span>
+                          <span className="text-gray-600">تخفیف محصولات</span>
                           <span className="text-green-600">
-                            -{formatPrice(discount - couponDiscount)}
+                            -{formatPrice(discount)}
                           </span>
                         </div>
+                      )}
 
-                        {/* Coupon Section */}
-                        {couponApplied ? (
-                          <div className="flex items-center justify-between bg-green-50 p-3 rounded-lg">
-                            <div className="flex items-center">
-                              <Percent className="w-4 h-4 text-green-600 ml-1" />
-                              <span className="text-green-700">کد تخفیف</span>
-                            </div>
-                            <div className="flex items-center">
-                              <span className="text-green-700 font-medium">
-                                -{formatPrice(couponDiscount)}
-                              </span>
-                              <button
-                                onClick={handleRemoveCoupon}
-                                className="mr-2 text-red-500 hover:text-red-700"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="border-t border-gray-200 pt-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-gray-600 flex items-center">
-                                <Tag className="w-4 h-4 ml-1" />
-                                کد تخفیف
-                              </span>
-                              <button className="text-blue-600 hover:text-blue-700 text-sm">
-                                کد دارم
-                              </button>
-                            </div>
-                            <div className="flex">
-                              <input
-                                type="text"
-                                value={couponCode}
-                                onChange={(e) => setCouponCode(e.target.value)}
-                                placeholder="کد تخفیف"
-                                className="flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:border-transparent"
-                              />
-                              <button
-                                onClick={handleApplyCoupon}
-                                disabled={applyingCoupon || !couponCode.trim()}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                {applyingCoupon ? (
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                ) : (
-                                  "اعمال"
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Total */}
-                      <div className="mt-6 pt-6 border-t border-gray-200">
-                        <div className="flex items-center justify-between">
-                          <span className="text-lg font-semibold text-gray-900">
-                            مبلغ قابل پرداخت
-                          </span>
-                          <span className="text-2xl font-bold text-gray-900">
-                            {formatPrice(total)}
+                      {/* Coupon Section */}
+                      <div className="border-t border-gray-200 pt-4 mt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-gray-600 flex items-center">
+                            <Tag className="w-4 h-4 ml-1" />
+                            کد تخفیف
                           </span>
                         </div>
-                        <p className="text-sm text-gray-500 mt-2">
-                          هزینه نهایی پس از ثبت سفارش قابل پرداخت است
-                        </p>
-                      </div>
-
-                      {/* Proceed to Checkout */}
-                      <button
-                        onClick={handleProceedToCheckout}
-                        disabled={selectedItems.length === 0}
-                        className="w-full mt-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                      >
-                        <CreditCard className="w-5 h-5 ml-2" />
-                        ادامه فرآیند خرید
-                      </button>
-
-                      {/* Security Badges */}
-                      <div className="mt-6 pt-6 border-t border-gray-200">
-                        <div className="flex items-center justify-center">
-                          <div className="text-center">
-                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                              <Shield className="w-5 h-5 text-green-600" />
-                            </div>
-                            <p className="text-xs text-gray-600">پرداخت امن</p>
-                          </div>
-                          <div className="text-center">
-                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                              <Truck className="w-5 h-5 text-blue-600" />
-                            </div>
-                            <p className="text-xs text-gray-600">ارسال سریع</p>
-                          </div>
-                          <div className="text-center">
-                            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                              <Package className="w-5 h-5 text-purple-600" />
-                            </div>
-                            <p className="text-xs text-gray-600">بازگشت وجه</p>
-                          </div>
+                        <div className="flex">
+                          <input
+                            type="text"
+                            value={couponCode}
+                            onChange={(e) => setCouponCode(e.target.value)}
+                            placeholder="کد تخفیف خود را وارد کنید"
+                            className="flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                          />
+                          <button
+                            onClick={handleApplyCoupon}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+                          >
+                            اعمال کد
+                          </button>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Estimated Delivery */}
-                  <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-6 text-white">
-                    <div className="flex items-center mb-4">
-                      <Truck className="w-6 h-6 ml-2" />
-                      <h3 className="font-semibold">تخمین زمان تحویل</h3>
+                    {/* Total */}
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-lg font-semibold text-gray-900">
+                          مبلغ قابل پرداخت
+                        </span>
+                        <span className="text-2xl font-bold text-gray-900">
+                          {formatPrice(total)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        هزینه نهایی پس از ثبت سفارش قابل پرداخت است
+                      </p>
                     </div>
-                    <p className="text-sm mb-3">
-                      سفارش شما پس از پرداخت، بین ۱ تا ۳ روز کاری تحویل داده
-                      می‌شود.
-                    </p>
-                    <div className="flex items-center text-sm">
-                      <Clock className="w-4 h-4 ml-1" />
-                      <span>ساعات کاری: شنبه تا پنجشنبه، ۹ صبح تا ۶ عصر</span>
-                    </div>
-                  </div>
 
-                  {/* Need Help */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                    <h3 className="font-semibold text-gray-900 mb-4">
-                      نیاز به راهنمایی دارید؟
-                    </h3>
-                    <div className="space-y-3">
-                      <Link
-                        href="/faq"
-                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <span>سوالات متداول</span>
-                        <ArrowRight className="w-4 h-4 text-gray-400" />
-                      </Link>
-                      <Link
-                        href="/support"
-                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <span>تماس با پشتیبانی</span>
-                        <ArrowRight className="w-4 h-4 text-gray-400" />
-                      </Link>
-                      <Link
-                        href="/shipping"
-                        className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <span>شرایط ارسال و بازگشت</span>
-                        <ArrowRight className="w-4 h-4 text-gray-400" />
-                      </Link>
+                    {/* Checkout Button */}
+                    <button
+                      onClick={handleProceedToCheckout}
+                      disabled={selectedItems.length === 0}
+                      className="w-full mt-6 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center font-medium text-lg"
+                    >
+                      <CreditCard className="w-5 h-5 ml-2" />
+                      ادامه فرآیند خرید
+                    </button>
+
+                    {/* Selected Items Count */}
+                    <div className="mt-4 text-center">
+                      <p className="text-sm text-gray-600">
+                        {selectedItems.length} محصول از {cart.items.length}{" "}
+                        محصول انتخاب شده
+                      </p>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* Recently Viewed */}
-            <div className="mt-12">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  بازدیدهای اخیر
-                </h2>
-                <Link
-                  href="/products"
-                  className="text-blue-600 hover:text-blue-700 flex items-center"
-                >
-                  مشاهده همه
-                  <ArrowRight className="w-4 h-4 mr-1" />
-                </Link>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div
-                    key={i}
-                    className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
-                  >
-                    <div className="w-full h-32 bg-gray-100 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                      <img
-                        src="https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg"
-                        alt={`محصول ${i}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <p className="text-sm text-gray-900 line-clamp-2">
-                      محصول نمونه {i}
-                    </p>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="font-bold text-gray-900">
-                        ۱۵۹,۰۰۰ تومان
-                      </span>
-                      <button className="text-gray-400 hover:text-red-500">
-                        <Heart className="w-4 h-4" />
-                      </button>
-                    </div>
+                {/* Shipping Info */}
+                <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl p-6 text-white">
+                  <div className="flex items-center mb-4">
+                    <Truck className="w-6 h-6 ml-2" />
+                    <h3 className="font-semibold">تخمین زمان تحویل</h3>
                   </div>
-                ))}
+                  <p className="text-sm mb-3">
+                    سفارش شما پس از پرداخت، بین ۱ تا ۳ روز کاری در تهران و ۳ تا
+                    ۷ روز کاری در سایر شهرها تحویل داده می‌شود.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </>

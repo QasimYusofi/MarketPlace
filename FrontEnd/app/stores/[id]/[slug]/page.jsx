@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ShoppingCart,
   Heart,
-  ArrowRight,
   Star,
   Check,
   ShoppingBag,
@@ -23,77 +22,61 @@ import {
   Sparkles,
   X,
   User,
-  LogIn,
   Store,
   Phone,
   Mail,
-  Globe,
   Calendar,
   Award,
   Users,
   Package,
   Eye,
   Info,
+  Home,
+  AlertCircle,
+  MessageCircle,
+  ThumbsUp,
+  BookOpen,
+  Users as UsersIcon,
+  Bookmark,
+  Plus,
+  Minus,
 } from "lucide-react";
-import Loading from "@/components/ui/Loading";
+import toast from "react-hot-toast";
 
-// Color mapping for standard color names to HEX codes
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+
+// Color mapping for Persian color names
 const colorMap = {
-  // Basic colors
   قرمز: "#FF0000",
-  سرخ: "#FF0000",
-  red: "#FF0000",
   آبی: "#0000FF",
-  blue: "#0000FF",
   سبز: "#008000",
-  green: "#008000",
   مشکی: "#000000",
-  سیاه: "#000000",
-  black: "#000000",
   سفید: "#FFFFFF",
-  white: "#FFFFFF",
   زرد: "#FFFF00",
-  yellow: "#FFFF00",
   نارنجی: "#FFA500",
-  orange: "#FFA500",
   بنفش: "#800080",
-  purple: "#800080",
   صورتی: "#FFC0CB",
-  pink: "#FFC0CB",
   قهوه‌ای: "#A52A2A",
-  brown: "#A52A2A",
   خاکستری: "#808080",
-  gray: "#808080",
-  grey: "#808080",
-
-  // Additional common colors
-  "نوک مدادی": "#36454F",
   نقره‌ای: "#C0C0C0",
-  silver: "#C0C0C0",
   طلایی: "#FFD700",
-  gold: "#FFD700",
-  "نوک مدادی": "#2F4F4F",
   فیروزه‌ای: "#40E0D0",
-  turquoise: "#40E0D0",
   لاجوردی: "#191970",
-  navy: "#191970",
   زیتونی: "#808000",
-  olive: "#808000",
   بژ: "#F5F5DC",
-  beige: "#F5F5DC",
   عنابی: "#800000",
-  maroon: "#800000",
-  فسنجونی: "#FF00FF",
-  magenta: "#FF00FF",
   "آبی آسمانی": "#87CEEB",
-  skyblue: "#87CEEB",
   "سبز روشن": "#90EE90",
-  lightgreen: "#90EE90",
 };
 
 const ProductDetailPage = () => {
-  const params = useParams();
   const router = useRouter();
+  const params = useParams();
+  const productId = params.slug;
+  const storeId = params.id;
+
+  // States
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -105,375 +88,590 @@ const ProductDetailPage = () => {
   const [addingToWishlist, setAddingToWishlist] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageZoom, setImageZoom] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [authAction, setAuthAction] = useState(""); // "cart", "wishlist", or "ownerInfo"
   const [ownerStore, setOwnerStore] = useState(null);
   const [showOwnerInfo, setShowOwnerInfo] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [addingComment, setAddingComment] = useState(false);
+  const [activeTab, setActiveTab] = useState("description");
+  const [isLiked, setIsLiked] = useState(false);
+  const [wishlistCount, setWishlistCount] = useState(0);
+  const [relatedProducts, setRelatedProducts] = useState([]);
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
 
-  const storeOwnerId = params.id;
-  const productId = params.slug;
+  // Check authentication
+  const checkAuth = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("accessToken");
+      const userData = localStorage.getItem("user");
 
-  console.log("storeOwnerId: " + storeOwnerId);
-
-  // Check user authentication
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch("/api/auth/user-session");
-        const result = await response.json();
-
-        if (result.isAuthenticated && result.user) {
-          setUser(result.user);
-        } else {
+      if (token && userData) {
+        try {
+          setUser(JSON.parse(userData));
+        } catch (error) {
+          console.error("Error parsing user data:", error);
           setUser(null);
         }
-      } catch (error) {
-        console.error("Error checking auth:", error);
+      } else {
         setUser(null);
       }
-    };
-
-    checkAuth();
+    }
   }, []);
 
-  // Fetch owner store information
-  useEffect(() => {
-    const fetchOwnerStore = async () => {
-      try {
-        const response = await fetch(`/api/store-owners/${storeOwnerId}`);
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success) {
-            setOwnerStore(result.data);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching owner store:", error);
-      }
-    };
+  // Get auth token
+  const getAuthToken = () => {
+    return localStorage.getItem("accessToken");
+  };
 
-    if (storeOwnerId) {
-      fetchOwnerStore();
+  // Format currency
+  const formatCurrency = (price) => {
+    if (!price && price !== 0) return "قیمت نامعلوم";
+    return new Intl.NumberFormat("fa-IR").format(price) + " تومان";
+  };
+
+  // Calculate discount percentage
+  const calculateDiscount = (price, comparePrice) => {
+    if (!comparePrice || comparePrice <= price) return 0;
+    return Math.round((1 - price / comparePrice) * 100);
+  };
+
+  // Get product image URL
+  const getProductImageUrl = (product) => {
+    if (!product) return null;
+
+    // Handle images array
+    if (
+      product.images &&
+      Array.isArray(product.images) &&
+      product.images.length > 0
+    ) {
+      const image = product.images[0];
+      if (typeof image === "string") return image;
+      if (image.url) return image.url;
+      if (image.image) return image.image;
     }
-  }, [storeOwnerId]);
 
-  // Function to get HEX color from color name
+    // Handle single image
+    if (product.image) {
+      if (typeof product.image === "string") return product.image;
+      if (product.image.url) return product.image.url;
+    }
+
+    return null;
+  };
+
+  // Get full image URL
+  const getFullImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith("http")) return imagePath;
+    if (imagePath.startsWith("/")) {
+      return `http://127.0.0.1:8000${imagePath}`;
+    }
+    return imagePath;
+  };
+
+  // Get HEX color for color name
   const getColorHex = (colorName) => {
     if (!colorName) return "#CCCCCC";
+    if (colorName.startsWith("#")) return colorName;
 
-    // If it's already a HEX code, return it
-    if (colorName.startsWith("#")) {
-      return colorName;
-    }
-
-    // Convert to lowercase and trim for matching
     const normalizedColor = colorName.trim().toLowerCase();
-
-    // Find in color map
     for (const [key, value] of Object.entries(colorMap)) {
       if (key.toLowerCase() === normalizedColor) {
         return value;
       }
     }
 
-    // If not found, generate a consistent color from the string
-    return generateColorFromString(colorName);
-  };
-
-  // Function to generate a consistent color from string
-  const generateColorFromString = (str) => {
+    // Generate consistent color from string
     let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    for (let i = 0; i < colorName.length; i++) {
+      hash = colorName.charCodeAt(i) + ((hash << 5) - hash);
     }
-
-    const colors = [
-      "#FF6B6B",
-      "#4ECDC4",
-      "#45B7D1",
-      "#96CEB4",
-      "#FFEAA7",
-      "#DDA0DD",
-      "#98D8C8",
-      "#F7DC6F",
-      "#BB8FCE",
-      "#85C1E9",
-      "#F8C471",
-      "#82E0AA",
-      "#F1948A",
-      "#85C1E9",
-      "#D7BDE2",
-    ];
-
+    const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7"];
     return colors[Math.abs(hash) % colors.length];
   };
 
   // Fetch product details
-  useEffect(() => {
-    const fetchProduct = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`/api/products/${productId}`);
+  const fetchProductDetails = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+      console.log(
+        `Fetching product from: ${API_BASE_URL}/products/${productId}/`
+      );
+      const response = await fetch(`${API_BASE_URL}/products/${productId}/`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("محصول یافت نشد");
         }
-
-        const result = await response.json();
-        console.log("Product data:", result);
-
-        if (result.success) {
-          setProduct(result.data);
-          // Set default selections
-          if (result.data.colors && result.data.colors.length > 0) {
-            setSelectedColor(result.data.colors[0]);
-          }
-          if (result.data.sizes && result.data.sizes.length > 0) {
-            setSelectedSize(result.data.sizes[0]);
-          }
-        } else {
-          setError(result.message || "خطا در دریافت اطلاعات محصول");
-        }
-      } catch (error) {
-        console.error("Error fetching product:", error);
-        setError("خطا در دریافت اطلاعات محصول");
-      } finally {
-        setLoading(false);
+        throw new Error(`خطا در دریافت محصول: ${response.status}`);
       }
-    };
 
-    if (productId) {
-      fetchProduct();
+      const productData = await response.json();
+      console.log("Product data received:", productData);
+      setProduct(productData);
+
+      // Set default selections
+      if (productData.colors && productData.colors.length > 0) {
+        setSelectedColor(productData.colors[0]);
+      }
+      if (productData.sizes && productData.sizes.length > 0) {
+        setSelectedSize(productData.sizes[0]);
+      }
+
+      // Extract store owner ID and fetch store details
+      const storeOwnerId =
+        productData.store_owner?.id || productData.store_owner_id;
+      console.log("Store Owner ID:", storeOwnerId);
+
+      if (storeOwnerId) {
+        fetchStoreOwnerDetails(storeOwnerId);
+        fetchRelatedProducts(storeOwnerId);
+      }
+
+      // Fetch comments
+      fetchComments();
+
+      // Increment view count
+      incrementViewCount();
+
+      // Check if product is in wishlist
+      const token = getAuthToken();
+      if (token) {
+        checkWishlistStatus(token);
+      }
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
     }
   }, [productId]);
 
-  // Handle add to cart with authentication check
-  const handleAddToCart = async () => {
-    // Validate selections
-    if (!selectedColor && product.colors && product.colors.length > 0) {
-      alert("لطفا رنگ محصول را انتخاب کنید");
-      return;
-    }
+  // Check wishlist status
+  const checkWishlistStatus = async (token) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/wishlists/me/check/${productId}/`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-    if (!selectedSize && product.sizes && product.sizes.length > 0) {
-      alert("لطفا سایز محصول را انتخاب کنید");
-      return;
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Wishlist check response:", data);
+        setIsLiked(data.is_in_wishlist || false);
+      }
+    } catch (error) {
+      console.error("Error checking wishlist:", error);
     }
-
-    // Check if user is logged in
-    if (!user) {
-      setAuthAction("cart");
-      setShowLoginModal(true);
-      return;
-    }
-
-    // Proceed with adding to cart
-    await addToCart();
   };
 
-  // Actual add to cart function
-  const addToCart = async () => {
-    setAddingToCart(true);
-
+  // Fetch store owner details
+  const fetchStoreOwnerDetails = async (storeOwnerId) => {
     try {
-      const response = await fetch("/api/cart", {
+      const response = await fetch(
+        `${API_BASE_URL}/store-owners/${storeOwnerId}/`
+      );
+      if (response.ok) {
+        const storeData = await response.json();
+        console.log("Store data received:", storeData);
+        setOwnerStore(storeData);
+      } else {
+        // Try alternative endpoint
+        const altResponse = await fetch(`${API_BASE_URL}/store-owners/`);
+        if (altResponse.ok) {
+          const allStores = await altResponse.json();
+          const store = Array.isArray(allStores)
+            ? allStores.find(
+                (s) => s.id === storeOwnerId || s._id === storeOwnerId
+              )
+            : allStores.results?.find(
+                (s) => s.id === storeOwnerId || s._id === storeOwnerId
+              );
+
+          if (store) {
+            setOwnerStore(store);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching store owner:", error);
+    }
+  };
+
+  // Fetch related products
+  const fetchRelatedProducts = async (storeOwnerId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/products/store/${storeOwnerId}/`
+      );
+      if (response.ok) {
+        const products = await response.json();
+        console.log("Related products received:", products);
+
+        // Handle different response formats
+        let productsArray = [];
+        if (Array.isArray(products)) {
+          productsArray = products;
+        } else if (products.results && Array.isArray(products.results)) {
+          productsArray = products.results;
+        } else if (products.products && Array.isArray(products.products)) {
+          productsArray = products.products;
+        }
+
+        const related = productsArray
+          .filter((p) => p.id !== productId && p._id !== productId)
+          .slice(0, 4);
+        setRelatedProducts(related);
+      }
+    } catch (error) {
+      console.error("Error fetching related products:", error);
+    }
+  };
+
+  // Fetch comments
+  const fetchComments = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/comments/product/${productId}/`
+      );
+      if (response.ok) {
+        const commentsData = await response.json();
+        console.log("Comments received:", commentsData);
+
+        // Handle different response formats
+        if (Array.isArray(commentsData)) {
+          setComments(commentsData);
+        } else if (
+          commentsData.results &&
+          Array.isArray(commentsData.results)
+        ) {
+          setComments(commentsData.results);
+        } else if (
+          commentsData.comments &&
+          Array.isArray(commentsData.comments)
+        ) {
+          setComments(commentsData.comments);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+    }
+  };
+
+  // Increment view count
+  const incrementViewCount = async () => {
+    try {
+      await fetch(`${API_BASE_URL}/products/${productId}/view/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          productId: productId,
-          quantity: quantity,
-          color: selectedColor,
-          size: selectedSize,
-          ownerStoreId: storeOwnerId,
-        }),
+      });
+    } catch (error) {
+      console.error("Error incrementing view count:", error);
+    }
+  };
+
+  // Handle add to cart
+  const handleAddToCart = async () => {
+    if (!product) {
+      toast.error("محصول بارگذاری نشده است");
+      return;
+    }
+
+    // Check authentication
+    const token = getAuthToken();
+    if (!token) {
+      setShowLoginModal(true);
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
+      return;
+    }
+
+    // Validate selections
+    if (product.colors && product.colors.length > 0 && !selectedColor) {
+      toast.error("لطفا رنگ محصول را انتخاب کنید");
+      return;
+    }
+
+    if (product.sizes && product.sizes.length > 0 && !selectedSize) {
+      toast.error("لطفا سایز محصول را انتخاب کنید");
+      return;
+    }
+
+    if (product.stock < quantity) {
+      toast.error(
+        `تعداد درخواستی بیشتر از موجودی است (موجودی: ${product.stock})`
+      );
+      return;
+    }
+
+    setAddingToCart(true);
+
+    try {
+      const cartItem = {
+        product_id: product.id || product._id,
+        quantity: quantity,
+        price_snapshot: product.price,
+        owner_store_id: product.store_owner?.id || product.store_owner_id,
+      };
+
+      // Add color and size if available
+      if (selectedColor) cartItem.color = selectedColor;
+      if (selectedSize) cartItem.size = selectedSize;
+
+      console.log("Adding to cart:", cartItem);
+
+      const response = await fetch(`${API_BASE_URL}/carts/me/add-item/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(cartItem),
       });
 
-      const result = await response.json();
-      console.log("Add to cart response:", result);
+      const data = await response.json();
+      console.log("Add to cart response:", data);
 
-      if (response.ok && result.success) {
-        console.log("Product added to cart successfully");
-
-        // Show success animation
-        setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 3000);
-
-        // Trigger cart update event
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("cartUpdated"));
-        }
+      if (response.ok) {
+        toast.success("محصول به سبد خرید اضافه شد ✓");
+        // Update cart count
+        window.dispatchEvent(new CustomEvent("cartUpdated"));
       } else {
-        console.error("Failed to add product to cart:", result.error);
-        alert(result.error || "خطا در افزودن به سبد خرید");
+        console.error("Add to cart failed:", data);
+        toast.error(data.detail || "خطا در افزودن به سبد خرید");
       }
     } catch (error) {
       console.error("Error adding to cart:", error);
-      alert("خطا در ارتباط با سرور. لطفا دوباره تلاش کنید.");
+      toast.error("خطا در ارتباط با سرور");
     } finally {
       setAddingToCart(false);
     }
   };
 
-  // Handle add to wishlist with authentication check
+  // Handle add to wishlist
   const handleAddToWishlist = async () => {
-    // Check if user is logged in
-    if (!user) {
-      setAuthAction("wishlist");
+    // Check authentication
+    const token = getAuthToken();
+    if (!token) {
       setShowLoginModal(true);
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
       return;
     }
 
-    // Proceed with adding to wishlist
-    await addToWishlist();
-  };
-
-  // Actual add to wishlist function
-  const addToWishlist = async () => {
     setAddingToWishlist(true);
 
     try {
-      const response = await fetch("/api/wishlist", {
+      const response = await fetch(`${API_BASE_URL}/wishlists/me/add/`, {
         method: "POST",
         headers: {
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          productId: productId,
+          product_id: product.id || product._id,
         }),
       });
 
-      const result = await response.json();
-      console.log("Add to wishlist response:", result);
+      const data = await response.json();
+      console.log("Add to wishlist response:", data);
 
-      if (response.ok && result.success) {
-        console.log("Product added to wishlist successfully");
-
-        // Show success feedback
-        const wishlistBtn = document.getElementById("wishlist-btn");
-        if (wishlistBtn) {
-          wishlistBtn.classList.add("animate-pulse");
-          setTimeout(() => wishlistBtn.classList.remove("animate-pulse"), 1000);
-        }
-
-        // Trigger wishlist update event
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("wishlistUpdated"));
-        }
+      if (response.ok) {
+        setIsLiked(!isLiked);
+        setWishlistCount((prev) =>
+          isLiked ? Math.max(0, prev - 1) : prev + 1
+        );
+        toast.success(
+          isLiked ? "از علاقه‌مندی‌ها حذف شد" : "به علاقه‌مندی‌ها اضافه شد ✓"
+        );
       } else {
-        console.error("Failed to add product to wishlist:", result.error);
-        alert(result.error || "خطا در افزودن به علاقه‌مندی‌ها");
+        console.error("Add to wishlist failed:", data);
+        toast.error(data.detail || "خطا در افزودن به علاقه‌مندی‌ها");
       }
     } catch (error) {
       console.error("Error adding to wishlist:", error);
-      alert("خطا در ارتباط با سرور. لطفا دوباره تلاش کنید.");
+      toast.error("خطا در ارتباط با سرور");
     } finally {
       setAddingToWishlist(false);
     }
   };
 
-  // Handle show owner info with authentication check
-  const handleShowOwnerInfo = () => {
-    // Check if user is logged in
-    if (!user) {
-      setAuthAction("ownerInfo");
-      setShowLoginModal(true);
+  // Handle add comment
+  const handleAddComment = async () => {
+    if (!newComment.trim()) {
+      toast.error("لطفا متن نظر خود را وارد کنید");
       return;
     }
 
-    // Show owner info
-    setShowOwnerInfo(true);
+    const token = getAuthToken();
+    if (!token) {
+      setShowLoginModal(true);
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
+      return;
+    }
+
+    setAddingComment(true);
+
+    try {
+      const commentData = {
+        product: product.id || product._id,
+        content: newComment,
+      };
+
+      if (rating > 0) {
+        commentData.rating = rating;
+      }
+
+      console.log("Adding comment:", commentData);
+
+      const response = await fetch(`${API_BASE_URL}/comments/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(commentData),
+      });
+
+      const data = await response.json();
+      console.log("Add comment response:", data);
+
+      if (response.ok) {
+        toast.success("نظر شما با موفقیت ثبت شد ✓");
+        setNewComment("");
+        setRating(0);
+        fetchComments();
+      } else {
+        console.error("Add comment failed:", data);
+        toast.error(data.detail || "خطا در ثبت نظر");
+      }
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      toast.error("خطا در ارتباط با سرور");
+    } finally {
+      setAddingComment(false);
+    }
   };
 
-  // Handle login modal actions
+  // Handle rate product
+  const handleRateProduct = async (selectedRating) => {
+    const token = getAuthToken();
+    if (!token) {
+      setShowLoginModal(true);
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/products/${productId}/rate/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ rating: selectedRating }),
+        }
+      );
+
+      const data = await response.json();
+      console.log("Rate product response:", data);
+
+      if (response.ok) {
+        setRating(selectedRating);
+        toast.success(`امتیاز ${selectedRating} ثبت شد ✓`);
+        fetchProductDetails(); // Refresh product data
+      } else {
+        console.error("Rate product failed:", data);
+        toast.error(data.detail || "خطا در ثبت امتیاز");
+      }
+    } catch (error) {
+      console.error("Error rating product:", error);
+      toast.error("خطا در ارتباط با سرور");
+    }
+  };
+
+  // Handle share product
+  const handleShareProduct = () => {
+    const productUrl = window.location.href;
+
+    if (navigator.share) {
+      navigator
+        .share({
+          title: product?.title || "محصول",
+          text: product?.description?.substring(0, 100) || "محصول جالب",
+          url: productUrl,
+        })
+        .catch(console.error);
+    } else {
+      navigator.clipboard
+        .writeText(productUrl)
+        .then(() => toast.success("لینک محصول کپی شد ✓"))
+        .catch(() => toast.error("خطا در کپی کردن لینک"));
+    }
+  };
+
+  // Handle login confirm
   const handleLoginConfirm = () => {
     setShowLoginModal(false);
-    if (!user) {
-      // ذخیره مسیر فعلی و اطلاعات محصول
-      const redirectData = {
-        path: window.location.pathname,
-        productId: product.id,
-        timestamp: Date.now(),
-      };
-      localStorage.setItem("redirectAfterLogin", JSON.stringify(redirectData));
-      router.push("/auth/user-login");
-      return;
+    router.push("/auth/user-login");
+  };
+
+  // Initialize
+  useEffect(() => {
+    if (productId) {
+      fetchProductDetails();
+      checkAuth();
     }
-  };
+  }, [productId, fetchProductDetails, checkAuth]);
 
-  const handleLoginCancel = () => {
-    setShowLoginModal(false);
-    setAuthAction("");
-  };
-
-  const nextImage = () => {
-    if (product.images && product.images.length > 1) {
-      setSelectedImageIndex((prev) =>
-        prev === product.images.length - 1 ? 0 : prev + 1
-      );
-    }
-  };
-
-  const prevImage = () => {
-    if (product.images && product.images.length > 1) {
-      setSelectedImageIndex((prev) =>
-        prev === 0 ? product.images.length - 1 : prev - 1
-      );
-    }
-  };
-
-  // Get modal message based on action
-  const getModalMessage = () => {
-    switch (authAction) {
-      case "cart":
-        return "برای افزودن محصول به سبد خرید";
-      case "wishlist":
-        return "برای افزودن محصول به علاقه‌مندی‌ها";
-      case "ownerInfo":
-        return "برای مشاهده اطلاعات کامل فروشنده";
-      default:
-        return "برای ادامه این عملیات";
-    }
-  };
-
-  // Show loading state
+  // Loading state
   if (loading) {
     return (
-      <Loading
-        text="در حال دریافت اطلاعات محصول..."
-        subText="لطفا چند لحظه صبر کنید..."
-        fullScreen={true}
-      />
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">
+            در حال دریافت اطلاعات محصول...
+          </p>
+        </div>
+      </div>
     );
   }
 
-  // Show error state
+  // Error state
   if (error || !product) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-8">
-          <div className="w-32 h-32 bg-gradient-to-br from-red-100 to-pink-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <div className="text-4xl">⚠️</div>
-          </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-3">
-            خطا در دریافت اطلاعات
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-md mx-auto">
+          <AlertCircle className="h-20 w-20 text-red-400 mx-auto mb-6" />
+          <h3 className="text-2xl font-bold text-gray-900 mb-4">
+            {error || "محصول یافت نشد"}
           </h3>
-          <p className="text-gray-600 mb-8 text-sm leading-relaxed">
-            {error ||
-              "محصول مورد نظر یافت نشد. ممکن است محصول حذف شده باشد یا آدرس وارد شده نادرست باشد."}
+          <p className="text-gray-600 mb-6">
+            متاسفانه نتوانستیم اطلاعات این محصول را پیدا کنیم.
           </p>
-          <div className="flex gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
-              onClick={() => router.back()}
-              className="bg-gray-600 text-white px-6 py-3 rounded-2xl hover:bg-gray-700 transition-all duration-300 transform hover:scale-105 font-medium text-sm shadow-lg"
+              onClick={() => router.push("/")}
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-all duration-200 font-medium flex items-center justify-center gap-2"
             >
-              بازگشت
+              <Home className="h-4 w-4" />
+              صفحه اصلی
             </button>
             <button
-              onClick={() => window.location.reload()}
-              className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-6 py-3 rounded-2xl hover:shadow-xl transition-all duration-300 transform hover:scale-105 font-medium text-sm shadow-lg"
+              onClick={fetchProductDetails}
+              className="border border-gray-300 text-gray-700 px-6 py-3 rounded-xl hover:bg-gray-50 transition-all duration-200 font-medium"
             >
               تلاش مجدد
             </button>
@@ -483,16 +681,24 @@ const ProductDetailPage = () => {
     );
   }
 
+  // Get product images
+  const productImages = product.images || [];
+  const mainImageUrl =
+    productImages.length > selectedImageIndex
+      ? getFullImageUrl(
+          getProductImageUrl({ images: [productImages[selectedImageIndex]] })
+        )
+      : null;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Login Modal */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform animate-scale-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in">
             <div className="p-6">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
                     <User className="w-5 h-5 text-white" />
                   </div>
@@ -506,22 +712,21 @@ const ProductDetailPage = () => {
                   </div>
                 </div>
                 <button
-                  onClick={handleLoginCancel}
+                  onClick={() => setShowLoginModal(false)}
                   className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
 
-              {/* Message */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-                <div className="flex items-start space-x-3">
+                <div className="flex items-start gap-3">
                   <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-white text-sm">!</span>
                   </div>
                   <div>
                     <p className="text-blue-800 font-medium text-sm mb-1">
-                      {getModalMessage()}
+                      برای انجام این عمل نیاز به ورود دارید
                     </p>
                     <p className="text-blue-600 text-xs">
                       لطفا وارد حساب کاربری خود شوید
@@ -530,93 +735,30 @@ const ProductDetailPage = () => {
                 </div>
               </div>
 
-              {/* Product Preview */}
-              {(authAction === "cart" || authAction === "wishlist") && (
-                <div className="border border-gray-200 rounded-xl p-4 mb-6">
-                  <div className="flex items-center space-x-4">
-                    {product.images && product.images.length > 0 && (
-                      <div className="w-16 h-16 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
-                        <img
-                          src={`data:${
-                            product.images[0].contentType
-                          };base64,${Buffer.from(
-                            product.images[0].data
-                          ).toString("base64")}`}
-                          alt={product.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 text-sm mb-1">
-                        {product.title}
-                      </h4>
-                      <p className="text-gray-600 text-xs mb-2">
-                        {product.shortDescription || "محصول انتخابی شما"}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-green-600 font-bold text-sm">
-                          {product.price?.toLocaleString()} تومان
-                        </span>
-                        {selectedColor && (
-                          <span className="text-gray-500 text-xs">
-                            رنگ: {selectedColor}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Store Preview for owner info */}
-              {authAction === "ownerInfo" && ownerStore && (
-                <div className="border border-gray-200 rounded-xl p-4 mb-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Store className="w-8 h-8 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 text-sm mb-1">
-                        {ownerStore.storeName}
-                      </h4>
-                      <p className="text-gray-600 text-xs mb-2">
-                        اطلاعات کامل فروشنده
-                      </p>
-                      <div className="flex items-center space-x-2">
-                        <Star className="w-3 h-3 text-amber-500 fill-current" />
-                        <span className="text-gray-500 text-xs">
-                          فروشگاه معتبر
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex space-x-3">
+              <div className="flex gap-3">
                 <button
-                  onClick={handleLoginCancel}
+                  onClick={() => setShowLoginModal(false)}
                   className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-medium hover:bg-gray-200 transition-colors"
                 >
                   لغو
                 </button>
                 <button
                   onClick={handleLoginConfirm}
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-medium hover:shadow-lg transition-all duration-300 flex items-center justify-center space-x-2"
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-medium hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
                 >
-                  <LogIn className="w-4 h-4" />
+                  <User className="w-4 h-4" />
                   <span>ورود به حساب</span>
                 </button>
               </div>
 
-              {/* Footer */}
               <div className="mt-4 text-center">
                 <p className="text-gray-500 text-xs">
                   حساب کاربری ندارید؟{" "}
                   <button
-                    onClick={() => router.push("/auth/user-register")}
+                    onClick={() => {
+                      setShowLoginModal(false);
+                      router.push("/auth/user-register");
+                    }}
                     className="text-blue-500 hover:text-blue-600 font-medium"
                   >
                     ثبت نام کنید
@@ -628,806 +770,919 @@ const ProductDetailPage = () => {
         </div>
       )}
 
-      {/* Owner Store Info Modal */}
-      {showOwnerInfo && ownerStore && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
-                    <Store className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-xl">
-                      اطلاعات فروشنده
-                    </h3>
-                    <p className="text-gray-600 text-sm">
-                      {ownerStore.storeName}
-                    </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Breadcrumb */}
+        <nav className="mb-6">
+          <ol className="flex items-center text-sm text-gray-600">
+            <li>
+              <button
+                onClick={() => router.push("/")}
+                className="hover:text-blue-600 transition-colors"
+              >
+                خانه
+              </button>
+            </li>
+            <li className="mx-2">
+              <ChevronLeft className="w-4 h-4 rotate-180" />
+            </li>
+            {ownerStore && (
+              <>
+                <li>
+                  <button
+                    onClick={() => router.push(`/stores/${ownerStore.id}`)}
+                    className="hover:text-blue-600 transition-colors"
+                  >
+                    {ownerStore.store_name || "فروشگاه"}
+                  </button>
+                </li>
+                <li className="mx-2">
+                  <ChevronLeft className="w-4 h-4 rotate-180" />
+                </li>
+              </>
+            )}
+            <li className="text-gray-900 font-medium">{product.title}</li>
+          </ol>
+        </nav>
+
+        {/* Main Product Card */}
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+          {/* Product Header with Quick Actions */}
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-xs font-medium">
+                    {product.category || "دسته‌بندی"}
+                  </span>
+                  <div className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-1 rounded-lg">
+                    <Star className="w-3 h-3 fill-current" />
+                    <span className="text-xs font-medium">
+                      {product.rating?.average?.toFixed(1) || "۴.۸"}
+                    </span>
                   </div>
                 </div>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                  {product.title}
+                </h1>
+                <p className="text-gray-600 text-sm">
+                  {product.description?.substring(0, 150)}...
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setShowOwnerInfo(false)}
+                  onClick={handleShareProduct}
                   className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                  title="اشتراک گذاری"
                 >
-                  <X className="w-5 h-5 text-gray-500" />
+                  <Share2 className="w-5 h-5 text-gray-600" />
+                </button>
+                <button
+                  onClick={handleAddToWishlist}
+                  disabled={addingToWishlist}
+                  className={`p-2 rounded-xl transition-all duration-300 ${
+                    isLiked
+                      ? "text-red-500 bg-red-50"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                  title={
+                    isLiked ? "حذف از علاقه‌مندی‌ها" : "افزودن به علاقه‌مندی‌ها"
+                  }
+                >
+                  {addingToWishlist ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Heart
+                      className={`w-5 h-5 ${isLiked ? "fill-current" : ""}`}
+                    />
+                  )}
                 </button>
               </div>
-
-              {/* Store Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                {/* Basic Info */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900 text-lg flex items-center space-x-2">
-                    <Info className="w-5 h-5 text-blue-500" />
-                    <span>اطلاعات پایه</span>
-                  </h4>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                      <span className="font-medium text-gray-700 text-sm">
-                        نام فروشگاه:
-                      </span>
-                      <span className="text-gray-900 font-semibold">
-                        {ownerStore.storeName}
-                      </span>
-                    </div>
-
-                    {ownerStore.sellerFirstName &&
-                      ownerStore.sellerLastName && (
-                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                          <span className="font-medium text-gray-700 text-sm">
-                            نام مالک:
-                          </span>
-                          <span className="text-gray-900 font-semibold">
-                            {ownerStore.sellerFirstName}{" "}
-                            {ownerStore.sellerLastName}
-                          </span>
-                        </div>
-                      )}
-
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                      <span className="font-medium text-gray-700 text-sm">
-                        نوع فروشگاه:
-                      </span>
-                      <span className="text-gray-900 font-semibold">
-                        {ownerStore.storeType === "multi-vendor"
-                          ? "چند فروشنده"
-                          : "تک فروشنده"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                      <span className="font-medium text-gray-700 text-sm">
-                        وضعیت:
-                      </span>
-                      <span
-                        className={`font-semibold ${
-                          ownerStore.sellerStatus === "approved"
-                            ? "text-green-600"
-                            : "text-yellow-600"
-                        }`}
-                      >
-                        {ownerStore.sellerStatus === "approved"
-                          ? "تایید شده"
-                          : "در انتظار تایید"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Contact Info */}
-                <div className="space-y-4">
-                  <h4 className="font-semibold text-gray-900 text-lg flex items-center space-x-2">
-                    <Users className="w-5 h-5 text-green-500" />
-                    <span>اطلاعات تماس</span>
-                  </h4>
-
-                  <div className="space-y-3">
-                    {ownerStore.sellerPhone && (
-                      <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-xl border border-blue-200">
-                        <Phone className="w-4 h-4 text-blue-500" />
-                        <div>
-                          <p className="text-blue-800 font-medium text-sm">
-                            شماره تماس
-                          </p>
-                          <p className="text-blue-600 text-xs">
-                            {ownerStore.sellerPhone}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {ownerStore.sellerEmail && (
-                      <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-xl border border-green-200">
-                        <Mail className="w-4 h-4 text-green-500" />
-                        <div>
-                          <p className="text-green-800 font-medium text-sm">
-                            ایمیل
-                          </p>
-                          <p className="text-green-600 text-xs">
-                            {ownerStore.sellerEmail}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {ownerStore.storeCity && (
-                      <div className="flex items-center space-x-3 p-3 bg-purple-50 rounded-xl border border-purple-200">
-                        <MapPin className="w-4 h-4 text-purple-500" />
-                        <div>
-                          <p className="text-purple-800 font-medium text-sm">
-                            موقعیت
-                          </p>
-                          <p className="text-purple-600 text-xs">
-                            {/* {ownerStore.storeAddress} */}
-                            {ownerStore.storeCity}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {ownerStore.sellerJoinDate && (
-                      <div className="flex items-center space-x-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                        <Calendar className="w-4 h-4 text-amber-500" />
-                        <div>
-                          <p className="text-amber-800 font-medium text-sm">
-                            عضویت از
-                          </p>
-                          <p className="text-amber-600 text-xs">
-                            {new Date(
-                              ownerStore.sellerJoinDate
-                            ).toLocaleDateString("fa-IR")}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Additional Info */}
-              <div className="space-y-4">
-                <h4 className="font-semibold text-gray-900 text-lg flex items-center space-x-2">
-                  <Award className="w-5 h-5 text-amber-500" />
-                  <span>اطلاعات تکمیلی</span>
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="col-span-1 md:col-span-3 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl p-6 shadow-2xl border-2 border-white/20 animate-pulse">
-                    <p className="text-white text-2xl font-bold text-center leading-relaxed drop-shadow-lg">
-                      برای دونستن قیمت لطفا تماس بگیرید
-                    </p>
-                  </div>
-
-                  {ownerStore.storeDescription && (
-                    <div
-                      className="col-span-1 md:col-span-3 bg-gray-100
-                     rounded-xl p-4"
-                    >
-                      <p className="text-gray-700 text-sm leading-relaxed">
-                        {ownerStore.storeDescription}
-                      </p>
-                    </div>
-                  )}
-
-                  {ownerStore.sellerBio && (
-                    <div className="col-span-1 md:col-span-3 bg-blue-50 rounded-xl p-4 border border-blue-200">
-                      <p className="text-blue-800 text-sm font-medium mb-2">
-                        درباره فروشنده:
-                      </p>
-                      <p className="text-blue-700 text-sm leading-relaxed">
-                        {ownerStore.sellerBio}
-                      </p>
-                    </div>
-                  )}
-
-                  {ownerStore.sellerLicenseId && (
-                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-xl border border-green-200">
-                      <span className="font-medium text-green-700 text-sm">
-                        پروانه کسب:
-                      </span>
-                      <span className="text-green-800 font-semibold text-sm">
-                        {ownerStore.sellerLicenseId}
-                      </span>
-                    </div>
-                  )}
-
-                  {ownerStore.storePostalCode && (
-                    <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-200">
-                      <span className="font-medium text-purple-700 text-sm">
-                        کد پستی:
-                      </span>
-                      <span className="text-purple-800 font-semibold text-sm">
-                        {ownerStore.storePostalCode}
-                      </span>
-                    </div>
-                  )}
-
-                  {ownerStore.storeAddress && (
-                    <div className="col-span-1 md:col-span-3 flex items-start space-x-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                      <MapPin className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-amber-800 font-medium text-sm mb-1">
-                          آدرس فروشگاه:
-                        </p>
-                        <p className="text-amber-700 text-sm">
-                          {ownerStore.storeAddress}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h4 className="font-semibold text-gray-900 text-lg mb-4 text-center">
-                  آمار فروشگاه
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-                    <Package className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-blue-700">۱۵+</p>
-                    <p className="text-blue-600 text-xs">محصول فعال</p>
-                  </div>
-                  <div className="text-center bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
-                    <Star className="w-6 h-6 text-green-600 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-green-700">۴.۸</p>
-                    <p className="text-green-600 text-xs">امتیاز فروشگاه</p>
-                  </div>
-                  <div className="text-center bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
-                    <Users className="w-6 h-6 text-purple-600 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-purple-700">۵۰+</p>
-                    <p className="text-purple-600 text-xs">مشتری راضی</p>
-                  </div>
-                  <div className="text-center bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
-                    <Award className="w-6 h-6 text-amber-600 mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-amber-700">۲</p>
-                    <p className="text-amber-600 text-xs">سال سابقه</p>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Success Animation */}
-      {showSuccess && (
-        <div className="fixed top-4 right-4 z-50 animate-bounce">
-          <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center space-x-2 text-sm">
-            <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-              <Check className="h-4 w-4 text-green-600" />
-            </div>
-            <div>
-              <p className="font-bold">✅ افزوده شد!</p>
-              <p className="opacity-90">محصول به سبد خرید اضافه شد</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Breadcrumb */}
-      {/* <div className="bg-white/80 backdrop-blur-lg border-b border-white/20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <nav className="flex items-center space-x-2 text-xs">
-            <button
-              onClick={() => router.push("/")}
-              className="text-gray-600 hover:text-blue-600 transition-all duration-300 hover:scale-105 flex items-center space-x-1"
-            >
-              <span>فروشگاه‌ها</span>
-            </button>
-            <ArrowRight className="h-3 w-3 rotate-180 text-gray-400" />
-            <button
-              onClick={() => router.push(`/stores/${storeOwnerId}`)}
-              className="text-gray-600 hover:text-blue-600 transition-all duration-300 hover:scale-105 flex items-center space-x-1"
-            >
-              <MapPin className="h-3 w-3" />
-              <span>{product.storeName}</span>
-            </button>
-            <ArrowRight className="h-3 w-3 rotate-180 text-gray-400" />
-            <span className="text-gray-900 font-medium bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent text-sm">
-              {product.title}
-            </span>
-          </nav>
-        </div>
-      </div> */}
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 p-6 lg:p-8">
             {/* Product Images */}
-            <div className="space-y-4 flex flex-col justify-start items-center">
-              {/* Main Image with Zoom */}
-              <div
-                className="relative bg-gradient-to-br w-96 from-gray-100 to-gray-200 h-full lg:h-[450px] rounded-2xl overflow-hidden cursor-zoom-in group"
-                onClick={() => setImageZoom(!imageZoom)}
-              >
-                {product.images && product.images.length > 0 ? (
+            <div className="space-y-6">
+              {/* Main Image */}
+              <div className="relative bg-gray-100 rounded-2xl overflow-hidden aspect-square">
+                {mainImageUrl ? (
                   <>
                     <img
-                      src={`data:${
-                        product.images[selectedImageIndex].contentType
-                      };base64,${Buffer.from(
-                        product.images[selectedImageIndex].data
-                      ).toString("base64")}`}
+                      src={mainImageUrl}
                       alt={product.title}
                       className={`w-full h-full object-cover transition-all duration-500 ${
-                        imageZoom ? "scale-200" : "group-hover:scale-105"
+                        imageZoom ? "scale-150" : "hover:scale-105"
                       }`}
+                      onClick={() => setImageZoom(!imageZoom)}
                     />
 
-                    {/* Navigation Arrows */}
-                    {product.images.length > 1 && (
+                    {productImages.length > 1 && (
                       <>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            prevImage();
+                            setSelectedImageIndex((prev) =>
+                              prev === 0 ? productImages.length - 1 : prev - 1
+                            );
                           }}
-                          className="absolute left-3 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-2xl hover:bg-white transition-all duration-300 hover:scale-110 group"
+                          className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
                         >
-                          <ChevronLeft className="h-5 w-5 text-gray-700 group-hover:text-blue-600" />
+                          <ChevronLeft className="w-5 h-5 text-gray-700" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            nextImage();
+                            setSelectedImageIndex((prev) =>
+                              prev === productImages.length - 1 ? 0 : prev + 1
+                            );
                           }}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-2xl hover:bg-white transition-all duration-300 hover:scale-110 group"
+                          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform"
                         >
-                          <ChevronRight className="h-5 w-5 text-gray-700 group-hover:text-blue-600" />
+                          <ChevronRight className="w-5 h-5 text-gray-700" />
                         </button>
                       </>
                     )}
 
                     {/* Zoom Indicator */}
-                    <div className="absolute top-3 left-3 bg-black/50 text-white px-2 py-1 rounded-xl backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center space-x-1 text-xs">
-                      <ZoomIn className="h-3 w-3" />
-                      <span>برای زوم کلیک کنید</span>
+                    <div className="absolute top-4 left-4 bg-black/50 text-white px-2 py-1 rounded-lg text-xs opacity-0 hover:opacity-100 transition-opacity">
+                      <ZoomIn className="w-3 h-3 inline ml-1" />
+                      کلیک برای زوم
                     </div>
 
                     {/* Discount Badge */}
-                    {product.comparePrice &&
-                      product.comparePrice > product.price && (
-                        <div className="absolute top-3 right-3">
-                          <div className="bg-gradient-to-r from-red-500 to-pink-600 text-white px-3 py-1 rounded-xl shadow-2xl font-bold text-xs">
-                            {Math.round(
-                              (1 - product.price / product.comparePrice) * 100
-                            )}
-                            % تخفیف
-                          </div>
-                        </div>
-                      )}
+                    {product.compare_price > product.price && (
+                      <div className="absolute top-4 right-4 bg-gradient-to-r from-red-500 to-pink-600 text-white px-3 py-1 rounded-lg font-bold text-sm shadow-lg">
+                        {calculateDiscount(
+                          product.price,
+                          product.compare_price
+                        )}
+                        % تخفیف
+                      </div>
+                    )}
                   </>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-200 to-gray-300">
-                    <ShoppingBag className="h-16 w-16 text-gray-400" />
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ShoppingBag className="w-16 h-16 text-gray-400" />
                   </div>
                 )}
               </div>
 
-              {/* Thumbnail Images */}
-              {product.images && product.images.length > 1 && (
-                <div className="flex space-x-3 overflow-x-auto pb-1">
-                  {product.images.map((image, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedImageIndex(index)}
-                      className={`flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all duration-300 transform hover:scale-105 ${
-                        selectedImageIndex === index
-                          ? "border-blue-500 shadow-lg scale-105"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      <img
-                        src={`data:${image.contentType};base64,${Buffer.from(
-                          image.data
-                        ).toString("base64")}`}
-                        alt={`${product.title} ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
+              {/* Thumbnails */}
+              {productImages.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {productImages.map((image, index) => {
+                    const thumbUrl = getFullImageUrl(
+                      getProductImageUrl({ images: [image] })
+                    );
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => setSelectedImageIndex(index)}
+                        className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                          selectedImageIndex === index
+                            ? "border-blue-500 ring-2 ring-blue-200 scale-105"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {thumbUrl ? (
+                          <img
+                            src={thumbUrl}
+                            alt={`${product.title} ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                            <ShoppingBag className="w-6 h-6 text-gray-400" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
-              <div className="flex items-center space-x-2 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200">
-                <Star className="h-4 w-4 text-amber-500 fill-current" />
-                <span className="font-bold text-amber-700 text-sm">۴.۸</span>
-                <span className="text-amber-600 text-xs">(۱۲ نظر)</span>
+
+              {/* Quick Stats */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-3 bg-blue-50 rounded-xl border border-blue-100">
+                  <Eye className="w-5 h-5 text-blue-600 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">
+                    {product.views || 0}
+                  </p>
+                  <p className="text-blue-600 text-xs">بازدید</p>
+                </div>
+                <div className="text-center p-3 bg-green-50 rounded-xl border border-green-100">
+                  <ShoppingCart className="w-5 h-5 text-green-600 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">
+                    {product.sold || 0}
+                  </p>
+                  <p className="text-green-600 text-xs">فروخته شده</p>
+                </div>
+                <div className="text-center p-3 bg-purple-50 rounded-xl border border-purple-100">
+                  <Heart className="w-5 h-5 text-purple-600 mx-auto mb-2" />
+                  <p className="text-2xl font-bold text-gray-900">
+                    {wishlistCount}
+                  </p>
+                  <p className="text-purple-600 text-xs">علاقه‌مندی</p>
+                </div>
               </div>
             </div>
 
-            {/* Product Info */}
+            {/* Product Info & Actions */}
             <div className="space-y-6">
-              {/* Product Header */}
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h1 className="text-2xl font-bold text-gray-900 leading-tight">
-                      {product.title}
-                    </h1>
-                    <p className="text-gray-600 mt-2 text-sm leading-relaxed">
-                      {product.shortDescription ||
-                        "محصولی با کیفیت عالی و طراحی مدرن"}
-                    </p>
-                  </div>
-                  <button className="p-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all duration-300 transform hover:scale-105">
-                    <Share2 className="h-5 w-5 text-gray-600" />
-                  </button>
-                </div>
-
-                {/* Rating and Code */}
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2 bg-gradient-to-r from-amber-50 to-orange-50 px-3 py-1 rounded-xl border border-amber-200">
-                    <div className="flex items-center space-x-1">
-                      <Star className="h-4 w-4 text-amber-500 fill-current" />
-                      <span className="font-bold text-amber-700 text-sm">
-                        {product.rating?.average
-                          ? product.rating.average.toFixed(1)
-                          : "5.0"}
+              {/* Price Section */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
+                <div className="flex items-end justify-between mb-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-3xl font-bold text-gray-900">
+                        {formatCurrency(product.price)}
                       </span>
+                      {product.compare_price > product.price && (
+                        <span className="text-lg text-gray-500 line-through">
+                          {formatCurrency(product.compare_price)}
+                        </span>
+                      )}
                     </div>
-                    {product.rating?.count && (
-                      <span className="text-amber-600 text-xs">
-                        ({product.rating.count} نظر)
-                      </span>
+                    {product.compare_price > product.price && (
+                      <div className="inline-flex items-center gap-2 bg-gradient-to-r from-red-500 to-pink-600 text-white px-3 py-1 rounded-full text-sm font-bold">
+                        <TrendingDown className="w-4 h-4" />
+                        صرفه‌جویی{" "}
+                        {formatCurrency(product.compare_price - product.price)}
+                      </div>
                     )}
                   </div>
-                  <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-xl border border-blue-200 font-medium text-sm">
-                    کد: {product.productCode || "1001"}
+                  <div className="flex items-center gap-2">
+                    <Star className="w-5 h-5 text-amber-500 fill-current" />
+                    <span className="text-amber-700 font-bold">
+                      {product.rating?.average?.toFixed(1) || "۴.۸"}
+                    </span>
+                    <span className="text-gray-600 text-sm">
+                      ({product.rating?.count || 0} نظر)
+                    </span>
                   </div>
                 </div>
-              </div>
 
-              {/* Price Section */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-100 rounded-2xl p-4 border border-blue-200/50">
-                {/* بخش تماس برای قیمت - با طراحی جذاب برای جلب توجه */}
-                <div className="col-span-1 md:col-span-3 bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-500 rounded-xl p-6 shadow-2xl border-2 border-white/30 animate-pulse mb-4">
-                  <p className="text-white text-2xl font-bold text-center leading-relaxed drop-shadow-lg">
-                    برای دونستن قیمت لطفا تماس بگیرید
-                  </p>
-                </div>
-
-                {/* <div className="flex items-end justify-between mb-3">
-    <div className="space-y-1">
-      <span className="text-xl font-semibold text-gray-900">
-        {product.price?.toLocaleString() || "650,000"} تومان
-      </span>
-      {product.comparePrice &&
-        product.comparePrice > product.price && (
-          <div className="space-y-1">
-            <span className="text-base text-gray-500 line-through block">
-              {product.comparePrice.toLocaleString()} تومان
-            </span>
-            <div className="bg-gradient-to-r from-red-500 to-pink-600 text-white px-3 py-1 rounded-full text-xs font-bold inline-block">
-              صرفه‌جویی{" "}
-              {Math.round(
-                (1 - product.price / product.comparePrice) * 100
-              )}
-              %
-            </div>
-          </div>
-        )}
-    </div>
-  </div> */}
-
-                <div className="flex items-center space-x-3 text-sm">
-                  <span
-                    className={`flex items-center space-x-2 ${
-                      product.stock > 0 ? "text-green-600" : "text-red-600"
-                    }`}
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        product.stock > 0 ? "bg-green-500" : "bg-red-500"
-                      } animate-pulse`}
-                    ></div>
-                    <span className="font-medium">
-                      {product.stock > 0
-                        ? `موجود در انبار (${product.stock} عدد)`
-                        : "ناموجود"}
-                    </span>
+                {/* Stock Status */}
+                <div
+                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg ${
+                    product.stock > 0
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                  }`}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      product.stock > 0 ? "bg-green-500" : "bg-red-500"
+                    } animate-pulse`}
+                  ></div>
+                  <span className="text-sm font-medium">
+                    {product.stock > 0
+                      ? `موجود در انبار (${product.stock} عدد)`
+                      : "ناموجود"}
                   </span>
                 </div>
               </div>
 
-              {/* Color Selection */}
-              {product.colors && product.colors.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-gray-900 text-base">
-                      انتخاب رنگ
-                    </h3>
-                    {selectedColor && (
-                      <span className="text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded-lg text-sm">
+              {/* Options Selection */}
+              <div className="space-y-4">
+                {/* Colors - Display as colored circles */}
+                {product.colors?.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      رنگ:{" "}
+                      <span className="text-blue-600 font-bold">
                         {selectedColor}
                       </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    {product.colors.map((color, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setSelectedColor(color)}
-                        className={`flex flex-col items-center space-y-2 transition-all duration-300 ${
-                          selectedColor === color
-                            ? "transform scale-105"
-                            : "hover:scale-105"
-                        }`}
-                      >
-                        <div
-                          className={`w-12 h-12 rounded-xl border-3 transition-all duration-300 shadow-lg ${
-                            selectedColor === color
-                              ? "border-blue-500 ring-3 ring-blue-200 shadow-xl"
-                              : "border-gray-300 hover:border-gray-400"
-                          }`}
-                          style={{ backgroundColor: getColorHex(color) }}
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                      {product.colors.map((color, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedColor(color)}
+                          className="flex flex-col items-center gap-2"
                           title={color}
                         >
-                          {selectedColor === color && (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Check className="h-5 w-5 text-white drop-shadow-lg" />
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-700 font-medium max-w-14 truncate">
-                          {color}
-                        </span>
-                      </button>
-                    ))}
+                          <div
+                            className={`w-10 h-10 rounded-full border-2 transition-all duration-300 shadow-lg ${
+                              selectedColor === color
+                                ? "border-blue-500 ring-3 ring-blue-200 scale-110"
+                                : "border-gray-300 hover:border-gray-400"
+                            }`}
+                            style={{ backgroundColor: getColorHex(color) }}
+                          >
+                            {selectedColor === color && (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Check className="w-4 h-4 text-white drop-shadow-lg" />
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-700 font-medium max-w-14 truncate">
+                            {color}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Size Selection */}
-              {product.sizes && product.sizes.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-gray-900 text-base">
-                      انتخاب سایز
-                    </h3>
-                    {selectedSize && (
-                      <span className="text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded-lg text-sm">
+                {/* Sizes */}
+                {product.sizes?.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      سایز:{" "}
+                      <span className="text-blue-600 font-bold">
                         {selectedSize}
                       </span>
-                    )}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {product.sizes.map((size, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedSize(size)}
+                          className={`px-4 py-2 rounded-lg border-2 transition-all duration-300 font-medium ${
+                            selectedSize === size
+                              ? "border-blue-500 bg-blue-500 text-white shadow-lg"
+                              : "border-gray-300 text-gray-700 hover:border-gray-400 bg-white"
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {product.sizes.map((size, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setSelectedSize(size)}
-                        className={`px-4 py-3 rounded-xl border-2 transition-all duration-300 font-semibold transform hover:scale-105 text-sm ${
-                          selectedSize === size
-                            ? "border-blue-500 bg-blue-500 text-white shadow-xl scale-105"
-                            : "border-gray-300 text-gray-700 hover:border-gray-400 bg-white shadow-lg hover:shadow-xl"
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+                )}
 
-              {/* Quantity Selection */}
-              <div className="space-y-3">
-                <h3 className="font-bold text-gray-900 text-base">تعداد</h3>
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center border-2 border-gray-300 rounded-xl bg-white shadow-lg overflow-hidden">
-                    <button
-                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="px-4 py-3 text-gray-600 hover:text-gray-800 transition-all duration-300 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                      disabled={quantity <= 1}
-                    >
-                      <span className="text-lg font-bold">−</span>
-                    </button>
-                    <span className="px-6 py-3 border-x border-gray-300 min-w-16 text-center font-bold text-base bg-gray-50">
-                      {quantity}
+                {/* Quantity */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    تعداد
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        className="px-4 py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                        disabled={quantity <= 1}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="px-6 py-3 border-x border-gray-300 min-w-12 text-center font-bold">
+                        {quantity}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setQuantity(
+                            Math.min(product.stock || 10, quantity + 1)
+                          )
+                        }
+                        className="px-4 py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                        disabled={quantity >= (product.stock || 10)}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      حداکثر:{" "}
+                      <span className="font-bold">{product.stock || 10}</span>{" "}
+                      عدد
                     </span>
-                    <button
-                      onClick={() =>
-                        setQuantity(Math.min(product.stock, quantity + 1))
-                      }
-                      className="px-4 py-3 text-gray-600 hover:text-gray-800 transition-all duration-300 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                      disabled={quantity >= product.stock}
-                    >
-                      <span className="text-lg font-bold">+</span>
-                    </button>
                   </div>
-                  <span className="text-gray-600 font-medium text-sm">
-                    حداکثر:{" "}
-                    <span className="text-blue-600">{product.stock}</span> عدد
-                  </span>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex space-x-3 pt-3">
+              <div className="flex gap-3 pt-4">
                 <button
-                  onClick={handleShowOwnerInfo}
-                  className="bg-gradient-to-r from-pink-500 to-orange-500 text-white hover:shadow-lg transition-all duration-300 flex items-center space-x-2 group flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl font-bold text-base transition-all duration-300"
-                >
-                  <Eye className="h-4 w-4" />
-                  <span className="text-sm">مشاهده اطلاعات فروشنده</span>
-                </button>
-
-                {/* <button
                   onClick={handleAddToCart}
-                  disabled={
-                    product.stock === 0 ||
-                    product.status !== "active" ||
-                    addingToCart
-                  }
-                  className={`flex-1 flex items-center justify-center space-x-3 py-4 px-6 rounded-xl font-bold text-base transition-all duration-300 ${
-                    product.stock > 0 &&
-                    product.status === "active" &&
-                    !addingToCart
-                      ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-2xl hover:shadow-3xl transform hover:scale-105"
-                      : "bg-gray-300 text-gray-500 cursor-not-allowed shadow-lg"
+                  disabled={product.stock === 0 || addingToCart}
+                  className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-3 ${
+                    product.stock > 0
+                      ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-xl hover:shadow-2xl hover:scale-[1.02] active:scale-95"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
                   }`}
                 >
                   {addingToCart ? (
                     <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      <span>در حال افزودن...</span>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      در حال افزودن...
                     </>
                   ) : (
                     <>
-                      <ShoppingCart className="h-5 w-5" />
-                      <span>
-                        {product.stock > 0 && product.status === "active"
-                          ? "افزودن به سبد خرید"
-                          : "ناموجود"}
-                      </span>
+                      <ShoppingCart className="w-5 h-5" />
+                      {product.stock > 0 ? "افزودن به سبد خرید" : "ناموجود"}
                     </>
                   )}
-                </button> */}
+                </button>
 
                 <button
-                  id="wishlist-btn"
-                  onClick={handleAddToWishlist}
-                  disabled={addingToWishlist}
-                  className={`p-4 border-2 rounded-xl transition-all duration-300 transform hover:scale-105 ${
-                    addingToWishlist
-                      ? "border-gray-300 text-gray-400 cursor-not-allowed"
-                      : "border-gray-300 text-gray-600 hover:border-red-300 hover:text-red-600 hover:bg-red-50 shadow-lg hover:shadow-xl"
-                  }`}
+                  onClick={() => setShowOwnerInfo(true)}
+                  className="px-6 py-4 border-2 border-gray-300 rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-colors flex items-center gap-2"
                 >
-                  {addingToWishlist ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Heart className="h-5 w-5" />
-                  )}
+                  <Store className="w-5 h-5 text-gray-700" />
+                  <span className="font-medium">فروشگاه</span>
                 </button>
               </div>
 
               {/* Features */}
               <div className="grid grid-cols-2 gap-3 pt-4">
-                <div className="flex items-center space-x-2 text-green-600 bg-green-50 px-3 py-2 rounded-xl border border-green-200 text-xs">
-                  <Truck className="h-4 w-4" />
-                  <span className="font-medium">ارسال رایگان</span>
-                </div>
-                <div className="flex items-center space-x-2 text-blue-600 bg-blue-50 px-3 py-2 rounded-xl border border-blue-200 text-xs">
-                  <RotateCcw className="h-4 w-4" />
-                  <span className="font-medium">بازگشت ۷ روزه</span>
-                </div>
-                <div className="flex items-center space-x-2 text-purple-600 bg-purple-50 px-3 py-2 rounded-xl border border-purple-200 text-xs">
-                  <Shield className="h-4 w-4" />
-                  <span className="font-medium">ضمانت اصل</span>
-                </div>
-                <div className="flex items-center space-x-2 text-amber-600 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200 text-xs">
-                  <Clock className="h-4 w-4" />
-                  <span className="font-medium">پشتیبانی ۲۴h</span>
-                </div>
+                {[
+                  { icon: Truck, label: "ارسال رایگان", color: "green" },
+                  { icon: Shield, label: "ضمانت اصل", color: "blue" },
+                  { icon: RotateCcw, label: "بازگشت ۷ روزه", color: "purple" },
+                  { icon: Clock, label: "پشتیبانی ۲۴h", color: "amber" },
+                ].map((feature, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-center gap-2 p-3 ${
+                      feature.color === "green"
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : feature.color === "blue"
+                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                        : feature.color === "purple"
+                        ? "bg-purple-50 text-purple-700 border-purple-200"
+                        : "bg-amber-50 text-amber-700 border-amber-200"
+                    } rounded-xl border`}
+                  >
+                    <feature.icon className="w-4 h-4" />
+                    <span className="text-sm font-medium">{feature.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* Product Description */}
-          <div className="border-t border-gray-200/50 p-8 bg-gradient-to-br from-gray-50 to-blue-50/30">
-            <div className="max-w-4xl mx-auto">
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-bold text-gray-900 mb-3 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  توضیحات کامل محصول
-                </h2>
-                <div className="w-20 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full mx-auto"></div>
-              </div>
+          {/* Tabs Section */}
+          <div className="border-t border-gray-200">
+            <div className="border-b border-gray-200">
+              <nav className="flex overflow-x-auto">
+                {[
+                  { id: "description", label: "توضیحات محصول", icon: BookOpen },
+                  { id: "specs", label: "مشخصات فنی", icon: Info },
+                  {
+                    id: "comments",
+                    label: "نظرات",
+                    icon: MessageCircle,
+                    count: comments.length,
+                  },
+                  { id: "questions", label: "پرسش و پاسخ", icon: UsersIcon },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-6 py-4 font-medium text-sm whitespace-nowrap border-b-2 transition-colors ${
+                      activeTab === tab.id
+                        ? "border-blue-500 text-blue-600 bg-blue-50"
+                        : "border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    }`}
+                  >
+                    <tab.icon className="w-4 h-4" />
+                    {tab.label}
+                    {tab.count !== undefined && (
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${
+                          activeTab === tab.id
+                            ? "bg-blue-100 text-blue-600"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </nav>
+            </div>
 
-              <div className="max-w-none">
-                <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200/50 mb-6">
-                  <p className="text-gray-700 leading-relaxed text-base mb-6 text-center">
-                    {product.description ||
-                      "این محصول با طراحی مدرن و کیفیت عالی، انتخاب مناسب برای استایل روزمره و مهمانی‌های شماست. استفاده از بهترین مواد و دوخت حرفه‌ای، راحتی و دوام را تضمین می‌کند."}
-                  </p>
+            {/* Tab Content */}
+            <div className="p-6">
+              {activeTab === "description" && (
+                <div className="space-y-6">
+                  <div className="prose prose-lg max-w-none">
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                      {product.description}
+                    </p>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
-                      <h3 className="font-bold text-gray-900 text-lg flex items-center space-x-2">
-                        <Crown className="h-5 w-5 text-amber-500" />
-                        <span>مشخصات فنی</span>
+                      <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <Crown className="w-5 h-5 text-amber-500" />
+                        <span>ویژگی‌های اصلی</span>
                       </h3>
-                      <ul className="space-y-3 text-gray-700 text-sm">
-                        <li className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                          <span className="font-semibold text-gray-900 text-sm">
-                            جنس:
-                          </span>
-                          <span className="bg-white px-3 py-1 rounded-lg border font-medium text-sm">
-                            {product.material || "نخ پنبه با کیفیت"}
-                          </span>
-                        </li>
-                        <li className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                          <span className="font-semibold text-gray-900 text-sm">
-                            رنگ‌بندی:
-                          </span>
-                          <span className="bg-white px-3 py-1 rounded-lg border font-medium text-sm">
-                            {product.colors
-                              ? product.colors.join("، ")
-                              : "متنوع"}
-                          </span>
-                        </li>
-                        <li className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                          <span className="font-semibold text-gray-900 text-sm">
-                            قابلیت شستشو:
-                          </span>
-                          <span className="bg-white px-3 py-1 rounded-lg border font-medium text-sm">
-                            بدون افت کیفیت
-                          </span>
-                        </li>
-                        <li className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                          <span className="font-semibold text-gray-900 text-sm">
-                            مناسب فصل:
-                          </span>
-                          <span className="bg-white px-3 py-1 rounded-lg border font-medium text-sm">
-                            بهار و تابستان
-                          </span>
-                        </li>
+                      <ul className="space-y-3">
+                        {[
+                          "کیفیت عالی مواد اولیه",
+                          "دوخت حرفه‌ای و دقیق",
+                          "طراحی مدرن و شیک",
+                          "مناسب برای تمام فصول",
+                        ].map((feature, index) => (
+                          <li
+                            key={index}
+                            className="flex items-center gap-3 text-gray-700"
+                          >
+                            <Check className="w-4 h-4 text-green-500" />
+                            {feature}
+                          </li>
+                        ))}
                       </ul>
                     </div>
 
                     <div className="space-y-4">
-                      <h3 className="font-bold text-gray-900 text-lg flex items-center space-x-2">
-                        <Sparkles className="h-5 w-5 text-blue-500" />
-                        <span>ویژگی‌های خاص</span>
+                      <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-blue-500" />
+                        <span>مزایای خرید</span>
                       </h3>
                       <div className="space-y-3">
-                        <div className="flex items-center space-x-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 text-sm">
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="text-gray-700 font-medium">
-                            ضمانت بازگشت ۷ روزه
-                          </span>
+                        {[
+                          {
+                            icon: Shield,
+                            text: "ضمانت اصالت کالا",
+                            color: "blue",
+                          },
+                          {
+                            icon: Truck,
+                            text: "ارسال سریع و رایگان",
+                            color: "green",
+                          },
+                          {
+                            icon: Award,
+                            text: "کیفیت تضمین شده",
+                            color: "amber",
+                          },
+                          {
+                            icon: Clock,
+                            text: "پشتیبانی ۲۴ ساعته",
+                            color: "purple",
+                          },
+                        ].map((benefit, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl"
+                          >
+                            <benefit.icon className="w-5 h-5" />
+                            <span className="text-gray-700 font-medium">
+                              {benefit.text}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "specs" && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-bold text-gray-900">
+                        مشخصات عمومی
+                      </h3>
+                      <div className="space-y-3">
+                        {[
+                          { label: "کد محصول", value: product.sku || "نامشخص" },
+                          {
+                            label: "دسته‌بندی",
+                            value: product.category || "نامشخص",
+                          },
+                          {
+                            label: "وضعیت",
+                            value: product.stock > 0 ? "موجود" : "ناموجود",
+                          },
+                          {
+                            label: "تاریخ افزودن",
+                            value: new Date(
+                              product.created_at || Date.now()
+                            ).toLocaleDateString("fa-IR"),
+                          },
+                        ].map((spec, index) => (
+                          <div
+                            key={index}
+                            className="flex justify-between items-center py-3 border-b border-gray-100"
+                          >
+                            <span className="text-gray-600">{spec.label}:</span>
+                            <span className="font-medium text-gray-900">
+                              {spec.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-bold text-gray-900">
+                        مشخصات فنی
+                      </h3>
+                      <div className="space-y-3">
+                        {[
+                          {
+                            label: "مواد اولیه",
+                            value: product.material || "نامشخص",
+                          },
+                          {
+                            label: "رنگ‌بندی",
+                            value: product.colors?.join("، ") || "متنوع",
+                          },
+                          {
+                            label: "سایزبندی",
+                            value: product.sizes?.join("، ") || "متنوع",
+                          },
+                          {
+                            label: "برچسب‌ها",
+                            value: product.tags?.join("، ") || "ندارد",
+                          },
+                        ].map((spec, index) => (
+                          <div
+                            key={index}
+                            className="flex justify-between items-center py-3 border-b border-gray-100"
+                          >
+                            <span className="text-gray-600">{spec.label}:</span>
+                            <span className="font-medium text-gray-900">
+                              {spec.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "comments" && (
+                <div className="space-y-8">
+                  {/* Add Comment */}
+                  <div className="bg-gray-50 rounded-2xl p-6">
+                    <h3 className="text-lg font-bold text-gray-900 mb-4">
+                      ثبت نظر جدید
+                    </h3>
+                    <div className="space-y-4">
+                      {/* Rating Stars */}
+                      <div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          امتیاز دهید:
+                        </p>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              onClick={() => setRating(star)}
+                              onMouseEnter={() => setHoverRating(star)}
+                              onMouseLeave={() => setHoverRating(0)}
+                              className="p-1 hover:scale-110 transition-transform"
+                            >
+                              <Star
+                                className={`w-6 h-6 ${
+                                  (hoverRating || rating) >= star
+                                    ? "text-amber-500 fill-current"
+                                    : "text-gray-300"
+                                }`}
+                              />
+                            </button>
+                          ))}
                         </div>
-                        <div className="flex items-center space-x-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200 text-sm">
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="text-gray-700 font-medium">
-                            ارسال رایگان برای خرید بالای ۲۰۰ هزار تومان
-                          </span>
+                      </div>
+
+                      <textarea
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="نظر خود را درباره این محصول بنویسید..."
+                        className="w-full h-32 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        disabled={addingComment}
+                      />
+
+                      <div className="flex justify-end">
+                        <button
+                          onClick={handleAddComment}
+                          disabled={addingComment || !newComment.trim()}
+                          className="bg-blue-600 text-white px-6 py-2 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          {addingComment ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              در حال ثبت...
+                            </>
+                          ) : (
+                            <>
+                              <MessageCircle className="w-4 h-4" />
+                              ثبت نظر
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Comments List */}
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-bold text-gray-900">
+                      نظرات کاربران ({comments.length})
+                    </h3>
+
+                    {comments.length > 0 ? (
+                      <div className="space-y-6">
+                        {comments.map((comment) => (
+                          <div
+                            key={comment.id || comment._id}
+                            className="bg-white border border-gray-200 rounded-2xl p-6"
+                          >
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
+                                  {comment.user?.first_name?.[0] ||
+                                    comment.author?.first_name?.[0] ||
+                                    "ن"}
+                                </div>
+                                <div>
+                                  <h4 className="font-bold text-gray-900">
+                                    {comment.user?.first_name ||
+                                      comment.author?.first_name ||
+                                      "کاربر"}{" "}
+                                    {comment.user?.last_name ||
+                                      comment.author?.last_name ||
+                                      ""}
+                                  </h4>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <div className="flex items-center gap-1">
+                                      <Star className="w-3 h-3 text-amber-500 fill-current" />
+                                      <span className="text-xs text-gray-600">
+                                        {comment.rating || 5}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs text-gray-500">
+                                      {new Date(
+                                        comment.created_at ||
+                                          comment.date ||
+                                          Date.now()
+                                      ).toLocaleDateString("fa-IR")}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <button className="p-2 hover:bg-gray-100 rounded-lg">
+                                <ThumbsUp className="w-5 h-5 text-gray-600" />
+                              </button>
+                            </div>
+                            <p className="text-gray-700 leading-relaxed">
+                              {comment.content || comment.text}
+                            </p>
+
+                            {/* Replies */}
+                            {comment.replies?.length > 0 && (
+                              <div className="mt-4 ml-8 border-r-2 border-blue-200 pr-4">
+                                {comment.replies.map((reply) => (
+                                  <div
+                                    key={reply.id || reply._id}
+                                    className="bg-blue-50 rounded-xl p-4 mb-2"
+                                  >
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Store className="w-4 h-4 text-blue-500" />
+                                      <span className="font-bold text-blue-700">
+                                        پاسخ فروشنده
+                                      </span>
+                                      <span className="text-xs text-gray-500">
+                                        {new Date(
+                                          reply.created_at ||
+                                            reply.date ||
+                                            Date.now()
+                                        ).toLocaleDateString("fa-IR")}
+                                      </span>
+                                    </div>
+                                    <p className="text-gray-700">
+                                      {reply.content || reply.text}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                        <MessageCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <h4 className="text-lg font-medium text-gray-900 mb-2">
+                          هنوز نظری ثبت نشده است
+                        </h4>
+                        <p className="text-gray-600">
+                          اولین نفری باشید که برای این محصول نظر می‌دهد.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "questions" && (
+                <div className="text-center py-12">
+                  <UsersIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">
+                    پرسش و پاسخ
+                  </h4>
+                  <p className="text-gray-600 max-w-md mx-auto">
+                    سوالی دارید؟ اولین نفر باشید که سوال خود را می‌پرسید.
+                  </p>
+                  <button className="mt-6 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 mx-auto">
+                    <MessageCircle className="w-4 h-4" />
+                    پرسش سوال جدید
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Related Products */}
+        {relatedProducts.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                محصولات مشابه از این فروشگاه
+              </h2>
+              {ownerStore && (
+                <button
+                  onClick={() => router.push(`/stores/${ownerStore.id}`)}
+                  className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2"
+                >
+                  مشاهده همه
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {relatedProducts.map((relatedProduct) => {
+                const relatedImageUrl = getFullImageUrl(
+                  getProductImageUrl(relatedProduct)
+                );
+                return (
+                  <div
+                    key={relatedProduct.id || relatedProduct._id}
+                    className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-shadow duration-300 cursor-pointer group"
+                    onClick={() =>
+                      router.push(
+                        `/stores/${storeId}/${
+                          relatedProduct.id || relatedProduct._id
+                        }`
+                      )
+                    }
+                  >
+                    <div className="aspect-square relative overflow-hidden">
+                      {relatedImageUrl ? (
+                        <img
+                          src={relatedImageUrl}
+                          alt={relatedProduct.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                          <ShoppingBag className="w-12 h-12 text-gray-400" />
                         </div>
-                        <div className="flex items-center space-x-3 p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200 text-sm">
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="text-gray-700 font-medium">
-                            پشتیبانی ۲۴ ساعته
-                          </span>
+                      )}
+
+                      {relatedProduct.compare_price > relatedProduct.price && (
+                        <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded-lg text-xs font-bold">
+                          {calculateDiscount(
+                            relatedProduct.price,
+                            relatedProduct.compare_price
+                          )}
+                          %
                         </div>
-                        <div className="flex items-center space-x-3 p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200 text-sm">
-                          <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          <span className="text-gray-700 font-medium">
-                            ارسال اکسپرس در تهران
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-semibold text-gray-900 text-sm mb-2 line-clamp-2">
+                        {relatedProduct.title}
+                      </h3>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <span className="text-blue-600 font-bold text-lg">
+                            {formatCurrency(relatedProduct.price)}
+                          </span>
+                          {relatedProduct.compare_price >
+                            relatedProduct.price && (
+                            <span className="text-gray-500 text-sm line-through">
+                              {formatCurrency(relatedProduct.compare_price)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3 h-3 text-amber-500 fill-current" />
+                          <span className="text-xs text-gray-600">
+                            {relatedProduct.rating?.average?.toFixed(1) ||
+                              "۴.۸"}
                           </span>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {/* Toast Container will be rendered by react-hot-toast */}
     </div>
   );
 };
