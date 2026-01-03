@@ -1,213 +1,127 @@
+// app/page.js
 "use client";
 import Link from "next/link";
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import {
-  FaUser,
-  FaSignInAlt,
-  FaInfoCircle,
-  FaSignOutAlt,
-} from "react-icons/fa";
-
-const HomePage = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userData, setUserData] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import { FiImage } from "react-icons/fi";
+// import heroImg from "./../public/hq720.jpg";
+// Import data from JSON files
+import featuredProducts from "./../data/featuredProducts.json";
+import siteConfig from "./../data/siteConfig.json";
+import FooterPage from "./../components/Footer/footer";
+import Header from "./../components/Header/header";
+import ModernStorePage from "./stores/page";
+// import ModernStorePage from "./stores/page";
+export default function HomePage() {
+  const [activeFilter, setActiveFilter] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
-    checkLoginStatus();
+    // Simulate cart count from localStorage or API
+    const savedCartCount = localStorage.getItem("cartCount");
+    if (savedCartCount) {
+      setCartCount(parseInt(savedCartCount));
+    }
   }, []);
 
-  const checkLoginStatus = () => {
-    const token = localStorage.getItem("token");
-    const user = localStorage.getItem("user");
+  // Safe Image Component
+  const SafeImage = ({ src, alt, width, height, className, fill = false }) => {
+    const [hasError, setHasError] = useState(false);
 
-    if (token) {
-      setIsLoggedIn(true);
-      if (user) {
-        try {
-          setUserData(JSON.parse(user));
-        } catch (error) {
-          console.error("Error parsing user data:", error);
-        }
-      }
+    if (!src || hasError) {
+      return (
+        <div
+          className={`${className} bg-gray-200 flex items-center justify-center rounded-lg`}
+        >
+          <FiImage className="text-gray-400 text-2xl" />
+          <span className="sr-only">{alt}</span>
+        </div>
+      );
     }
-  };
 
-  const fetchUserInfo = async () => {
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const Id = localStorage.getItem("ID");
-
-      // Replace with your actual API endpoint
-      const response = await fetch(`http://127.0.0.1:8000/api/users/${Id}/`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const userInfo = await response.json();
-        setUserData(userInfo);
-        localStorage.setItem("user", JSON.stringify(userInfo));
-
-        // Show success message
-        alert("اطلاعات کاربر با موفقیت دریافت شد!");
-      } else {
-        throw new Error("Failed to fetch user data");
-      }
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-      alert("خطا در دریافت اطلاعات کاربر");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setIsLoggedIn(false);
-    setUserData(null);
-    router.push("/");
-  };
-
-  const handleLogin = () => {
-    router.push("/auth/user-login");
+    return (
+      <Image
+        src={src}
+        alt={alt}
+        width={fill ? undefined : width}
+        height={fill ? undefined : height}
+        className={className}
+        onError={() => setHasError(true)}
+        placeholder="blur"
+        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAT8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+        {...(fill && { fill: true })}
+      />
+    );
   };
 
   return (
-    <div
-      className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 font-vazirmatn"
-      dir="rtl"
-    >
-      {/* Header Navigation */}
-      <div className="absolute top-6 left-1/2 transform -translate-x-1/2 z-10">
-        {isLoggedIn ? (
-          <div className="flex gap-4">
-            <button
-              onClick={fetchUserInfo}
-              disabled={isLoading}
-              className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              ) : (
-                <FaInfoCircle className="w-4 h-4" />
-              )}
-              <span>دریافت اطلاعات کاربر</span>
-            </button>
+    <div className="min-h-screen bg-gray-50" dir="rtl">
+      {/* Header */}
+      <Header />
+      {/* Hero Banner */}
+      {/* <!-- بنر معرفی --> */}
 
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl"
+      {/* <section
+        className="relative h-[300px] sm:h-[400px] md:h-[600px] lg:h-[860px] bg-cover bg-center flex items-center justify-center text-center mb-6"
+        style={{
+          backgroundImage: "url('/iamge2.jpeg')",
+        }}
+      ></section> */}
+
+      <section className="relative h-[600px] bg-gradient-to-r from-purple-600 to-pink-500 mb-12">
+        <div className="absolute inset-0 bg-black opacity-50"></div>
+        <div className="relative h-full flex items-center justify-center text-center text-white">
+          <div className="max-w-4xl px-4">
+            <h1 className="text-5xl md:text-6xl font-bold mb-6">
+              {siteConfig.site.name}
+            </h1>
+            <p className="text-xl md:text-2xl mb-8 opacity-90">
+              {siteConfig.site.description}
+            </p>
+            <Link
+              href="/products"
+              className="bg-white text-gray-900 px-8 py-4 rounded-full font-semibold hover:bg-gray-100 transition-colors inline-block"
             >
-              <FaSignOutAlt className="w-4 h-4" />
-              <span>خروج</span>
-            </button>
+              خرید آنلاین
+            </Link>
           </div>
-        ) : (
-          <button
-            onClick={handleLogin}
-            className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl"
-          >
-            <FaSignInAlt className="w-4 h-4" />
-            <span>ورود به حساب کاربری</span>
-          </button>
-        )}
+        </div>
+      </section>
+
+      {/* Products Grid */}
+      <div className="max-w-7xl mx-auto">
+        <ModernStorePage />
       </div>
 
-      {/* Main Content */}
-      <div className="text-center bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-2xl border border-white/20 max-w-md w-full">
-        {/* Welcome Message */}
-        <div className="mb-6">
-          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white shadow-lg mx-auto mb-4">
-            <FaUser className="w-8 h-8" />
-          </div>
-
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            {isLoggedIn ? "خوش آمدید!" : "به فروشگاه آنلاین خوش آمدید"}
-          </h1>
-
-          <p className="text-gray-600 leading-relaxed">
-            {isLoggedIn
-              ? "از امکانات حساب کاربری خود لذت ببرید"
-              : "این صفحه اصلی برنامه فروشگاه آنلاین ما می‌باشد"}
-          </p>
+      {/* Featured Products Section */}
+      <div className="max-w-7xl mx-auto px-4 pb-16">
+        <div className="flex items-center justify-center mb-12">
+          <div className="flex-grow h-px bg-gray-200"></div>
+          <h2 className="text-3xl font-bold text-center px-6 whitespace-nowrap">
+            منتخب مدرو
+          </h2>
+          <div className="flex-grow h-px bg-gray-200"></div>
         </div>
 
-        {/* User Information Display */}
-        {isLoggedIn && userData && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-right">
-            <h3 className="font-semibold text-blue-800 mb-2">اطلاعات کاربر:</h3>
-            <div className="space-y-1 text-sm text-gray-700">
-              {userData.phone && (
-                <p>
-                  <span className="font-medium">شماره تماس:</span>{" "}
-                  {userData.phone}
-                </p>
-              )}
-              {userData.first_name && (
-                <p>
-                  <span className="font-medium">نام:</span>{" "}
-                  {userData.first_name}
-                </p>
-              )}
-              {userData.last_name && (
-                <p>
-                  <span className="font-medium">نام خانوادگی:</span>{" "}
-                  {userData.last_name}
-                </p>
-              )}
-              {userData.email && (
-                <p>
-                  <span className="font-medium">ایمیل:</span> {userData.email}
-                </p>
-              )}
+        <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-4 gap-4">
+          {featuredProducts.featuredProducts.map((product) => (
+            <div
+              key={product.id}
+              className="text-center cursor-pointer flex justify-center items-center"
+            >
+              <img
+                className="object-cover rounded-2xl shadow-sm h-96"
+                src={product.img}
+                alt={product.title}
+              />
             </div>
-          </div>
-        )}
-
-        {/* Additional Info for Logged-in Users */}
-        {isLoggedIn && (
-          <div className="bg-gradient-to-r from-green-50 to-emerald-100 border border-green-200 rounded-xl p-4">
-            <h3 className="font-semibold text-green-800 mb-2">
-              امکانات حساب کاربری
-            </h3>
-            <ul className="text-sm text-gray-700 space-y-1 text-right">
-              <li>• مشاهده و مدیریت پروفایل</li>
-              <li>• پیگیری سفارش‌ها</li>
-              <li>• مدیریت آدرس‌ها</li>
-              <li>• لیست علاقه‌مندی‌ها</li>
-            </ul>
-          </div>
-        )}
-
-        {/* Call to Action for Non-Logged-in Users */}
-        {!isLoggedIn && (
-          <div className="bg-gradient-to-r from-orange-50 to-amber-100 border border-amber-200 rounded-xl p-4 mt-4">
-            <h3 className="font-semibold text-amber-800 mb-2">
-              برای دسترسی به امکانات بیشتر
-            </h3>
-            <p className="text-sm text-gray-700">
-              وارد حساب کاربری خود شوید یا یک حساب جدید ایجاد کنید
-            </p>
-          </div>
-        )}
+          ))}
+        </div>
       </div>
 
       {/* Footer */}
-      <div className="absolute bottom-6 text-center">
-        <p className="text-sm text-gray-500">
-          © 2024 فروشگاه آنلاین. تمامی حقوق محفوظ است.
-        </p>
-      </div>
+      <FooterPage />
     </div>
   );
-};
-
-export default HomePage;
+}

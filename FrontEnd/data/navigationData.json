@@ -1,0 +1,111 @@
+{
+  "mainMenu": [
+    {
+      "id": 1,
+      "title": "زنانه",
+      "href": "/women",
+      "subcategories": [
+        { "id": 1, "title": "لباس", "href": "/women/clothing" },
+        { "id": 2, "title": "کفش", "href": "/women/shoes" },
+        { "id": 3, "title": "اکسسوری", "href": "/women/accessories" },
+        { "id": 4, "title": "زیورآلات", "href": "/women/jewelry" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "مردانه",
+      "href": "/men",
+      "subcategories": [
+        { "id": 1, "title": "لباس", "href": "/men/clothing" },
+        { "id": 2, "title": "کفش", "href": "/men/shoes" },
+        { "id": 3, "title": "اکسسوری", "href": "/men/accessories" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "کودک",
+      "href": "/kids",
+      "subcategories": [
+        { "id": 1, "title": "پسرانه", "href": "/kids/boys" },
+        { "id": 2, "title": "دخترانه", "href": "/kids/girls" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "نوزاد",
+      "href": "/baby",
+      "subcategories": [
+        { "id": 1, "title": "لباس نوزاد", "href": "/baby/clothing" },
+        { "id": 2, "title": "اسباب بازی", "href": "/baby/toys" }
+      ]
+    }
+  ],
+  "footerLinks": {
+    "about": [
+      {
+        "id": 1,
+        "title": "آوینا چگونه کار می‌کند؟",
+        "href": "/about/how-it-works"
+      },
+      { "id": 2, "title": "تماس با ما و پشتیبانی", "href": "/contact" },
+      { "id": 3, "title": "قوانین و مقررات", "href": "/terms" },
+      { "id": 4, "title": "پرداخت امن آوینا", "href": "/secure-payment" }
+    ],
+    "buyers": [
+      { "id": 1, "title": "نحوۀ احراز هویت", "href": "/buyers/verification" },
+      { "id": 2, "title": "نحوۀ ثبت درخواست", "href": "/buyers/request" },
+      { "id": 3, "title": "چگونه بخریم", "href": "/buyers/how-to-buy" }
+    ],
+    "sellers": [
+      { "id": 1, "title": "نحوۀ ثبت محصول", "href": "/sellers/add-product" },
+      {
+        "id": 2,
+        "title": "نحوۀ عضویت فروشندگان",
+        "href": "/sellers/registration"
+      },
+      { "id": 3, "title": "چگونه بفروشیم", "href": "/sellers/how-to-sell" }
+    ],
+    "info": [
+      { "id": 1, "title": "تاریخچه و معرفی", "href": "/about" },
+      { "id": 2, "title": "چگونه خرید می‌کنیم؟", "href": "/shopping-guide" },
+      { "id": 3, "title": "ارتباط با ما", "href": "/contact" }
+    ]
+  },
+  "socialMedia": [
+    {
+      "id": 1,
+      "name": "فیس بوک",
+      "icon": "facebook",
+      "href": "https://facebook.com/avina",
+      "color": "blue"
+    },
+    {
+      "id": 2,
+      "name": "لینکدین",
+      "icon": "linkedin",
+      "href": "https://linkedin.com/company/avina",
+      "color": "blue"
+    },
+    {
+      "id": 3,
+      "name": "توییتر",
+      "icon": "twitter",
+      "href": "https://twitter.com/avian",
+      "color": "blue"
+    },
+    {
+      "id": 4,
+      "name": "اینستاگرام",
+      "icon": "instagram",
+      "href": "https://instagram.com/avina",
+      "color": "pink"
+    },
+    {
+      "id": 5,
+      "name": "تلگرام",
+      "icon": "send",
+      "href": "https://t.me/avina",
+      "color": "blue"
+    }
+  ]
+}

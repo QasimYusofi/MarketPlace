@@ -1,0 +1,11 @@
+ERROR = {
+    data : {phone: Array(1), store_name: Array(1)}
+    phone : ['Store Owner with this phone already exists.']
+    store_name : ['Store Owner with this store name already exists.']
+}
+
+
+I want this of you:
+    --> message error Phone and Store_name should be String
+    --> message error should be Persion laguange
+

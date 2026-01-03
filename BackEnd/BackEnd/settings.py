@@ -124,6 +124,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media files configuration
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -135,9 +139,9 @@ MIGRATION_MODULES = {
     'contenttypes': 'mongo_migrations.contenttypes',
 }
 
-# Custom user model - supports both Customer and StoreOwner authentication
-AUTH_USER_MODEL = 'marketplace.Customer'
-AUTH_USER_MODEL = 'marketplace.StoreOwner'
+# Custom user model - supports both Customer and StoreOwner authentication via BaseUser
+AUTH_USER_MODEL = 'marketplace.BaseUser'
+
 # CORS Configuration for Next.js frontend
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -163,7 +167,7 @@ REST_FRAMEWORK = {
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=180),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
