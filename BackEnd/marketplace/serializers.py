@@ -479,11 +479,9 @@ class OrderSerializer(serializers.ModelSerializer):
         except Customer.DoesNotExist:
             raise serializers.ValidationError("مشتری یافت نشد")
 
-        # Validate cart items and create order items
-        order_items = []
-        total_amount = 0
-        store_id = None
-
+        # Validate cart items and group them by store
+        store_orders_data = {}
+        
         for item in cart_items:
             try:
                 product = Product.objects.get(id=item['product_id'], status='active')
@@ -493,61 +491,68 @@ class OrderSerializer(serializers.ModelSerializer):
             if not product.is_in_stock or product.stock < item['quantity']:
                 raise serializers.ValidationError(f"محصول {product.title} موجود نیست یا موجودی کافی ندارد")
 
-            # Check if all items are from the same store
-            if store_id and str(product.store_owner.id) != store_id:
-                raise serializers.ValidationError("تمام محصولات باید از یک فروشگاه باشند")
             store_id = str(product.store_owner.id)
+            if store_id not in store_orders_data:
+                store_orders_data[store_id] = {
+                    'items': [],
+                    'total_amount': 0,
+                    'store': product.store_owner
+                }
 
             # Create order item data
             price = product.price
             quantity = item['quantity']
             item_total = price * quantity
 
-            order_item = {
+            order_item_data = {
                 'product': product,
                 'title': product.title,
                 'price': price,
                 'quantity': quantity,
                 'total': item_total,
             }
-            order_items.append(order_item)
-            total_amount += item_total
+            store_orders_data[store_id]['items'].append(order_item_data)
+            store_orders_data[store_id]['total_amount'] += item_total
 
-        # Get store
-        try:
-            store = StoreOwner.objects.get(id=store_id)
-        except StoreOwner.DoesNotExist:
-            raise serializers.ValidationError("فروشگاه یافت نشد")
+        created_orders = []
 
-        # Create order
-        order = Order.objects.create(
-            user=customer,
-            store=store,
-            total_amount=total_amount,
-            shipping_address=validated_data.get('shipping_address'),
-            payment_method=validated_data.get('payment_method'),
-            status=validated_data.get('status', Order.Status.PENDING),
-            tracking_number=validated_data.get('tracking_number'),
-        )
+        for store_id, data in store_orders_data.items():
+            store = data['store']
+            items_data = data['items']
+            total_amount = data['total_amount']
 
-        # Create order items
-        for item_data in order_items:
-            OrderItem.objects.create(
-                order=order,
-                **item_data
+            # Create order
+            order = Order.objects.create(
+                user=customer,
+                store=store,
+                total_amount=total_amount,
+                shipping_address=validated_data.get('shipping_address'),
+                payment_method=validated_data.get('payment_method'),
+                status=validated_data.get('status', Order.Status.PENDING),
+                tracking_number=validated_data.get('tracking_number'),
             )
 
-        # Update product stock and sales
-        for item_data in order_items:
-            product = item_data['product']
-            product.stock -= item_data['quantity']
-            product.sales_count += item_data['quantity']
-            product.save()
+            # Create order items and update stock
+            for item_data in items_data:
+                OrderItem.objects.create(
+                    order=order,
+                    **item_data
+                )
+                
+                # Update product stock and sales
+                product = item_data['product']
+                product.stock -= item_data['quantity']
+                product.sales_count += item_data['quantity']
+                product.save()
 
             # Update store statistics
-            store.increment_sales(item_data['total'])
+            store.increment_sales(total_amount)
+            
+            created_orders.append(order)
 
-        return order
+        # Return the list of created orders
+        # Note: The viewset needs to be updated to handle a list if many=True is needed
+        return created_orders
 
     def update(self, instance, validated_data):
         """Update order - only allow status and tracking number updates"""
