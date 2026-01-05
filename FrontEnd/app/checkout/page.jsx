@@ -1,4 +1,4 @@
-// app/checkout/page.js
+// app/checkout/page.js - UPDATED VERSION
 "use client";
 
 import { useState, useEffect } from "react";
@@ -20,14 +20,16 @@ import {
   Clock,
   Package,
   AlertCircle,
-  ChevronDown,
-  ChevronUp,
   Lock,
-  RefreshCw,
+  Loader2,
+  Store,
+  Home,
+  ClipboardList,
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
-const BASE_API = process.env.NEXT_PUBLIC_API_URL;
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
 
 const paymentMethods = [
   {
@@ -65,7 +67,7 @@ const shippingMethods = [
   {
     id: "regular",
     name: "پست معمولی",
-    description: "تحویل ۳-۵ روز کاری",
+    description: "تحویل ３-۵ روز کاری",
     cost: 15000,
     freeThreshold: 300000,
     icon: <Package className="w-5 h-5" />,
@@ -73,42 +75,116 @@ const shippingMethods = [
   {
     id: "free",
     name: "ارسال رایگان",
-    description: "تحویل ۴-۷ روز کاری",
+    description: "تحویل ４-۷ روز کاری",
     cost: 0,
     freeThreshold: 1000000,
     icon: <CheckCircle className="w-5 h-5" />,
   },
 ];
 
+// Utility Functions
+const getAuthToken = () => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("accessToken");
+  }
+  return null;
+};
+
+const formatPrice = (price) => {
+  if (!price && price !== 0) return "۰ تومان";
+  return new Intl.NumberFormat("fa-IR").format(Math.round(price)) + " تومان";
+};
+
+const parsePrice = (price) => {
+  if (typeof price === "string") {
+    return parseFloat(price.replace(/,/g, ""));
+  }
+  return price || 0;
+};
+
+// Function to parse API errors
+const parseAPIError = (errorData) => {
+  console.log("Raw error data:", errorData);
+  
+  if (typeof errorData === 'string') {
+    return errorData;
+  }
+  
+  if (Array.isArray(errorData)) {
+    // Handle array of errors (like your example: ['محصول Foodd موجود نیست یا موجودی کافی ندارد'])
+    return errorData.map(err => {
+      if (typeof err === 'string') return err;
+      if (err.message) return err.message;
+      if (err.detail) return err.detail;
+      return JSON.stringify(err);
+    }).join(' | ');
+  }
+  
+  if (typeof errorData === 'object') {
+    if (errorData.detail) {
+      return errorData.detail;
+    }
+    
+    if (errorData.message) {
+      return errorData.message;
+    }
+    
+    if (errorData.non_field_errors) {
+      if (Array.isArray(errorData.non_field_errors)) {
+        return errorData.non_field_errors.join(' | ');
+      }
+      return errorData.non_field_errors;
+    }
+    
+    // Handle field-specific errors
+    const fieldErrors = [];
+    for (const [field, errors] of Object.entries(errorData)) {
+      if (Array.isArray(errors)) {
+        fieldErrors.push(`${field}: ${errors.join(', ')}`);
+      } else if (typeof errors === 'string') {
+        fieldErrors.push(`${field}: ${errors}`);
+      }
+    }
+    
+    if (fieldErrors.length > 0) {
+      return fieldErrors.join(' | ');
+    }
+    
+    return JSON.stringify(errorData);
+  }
+  
+  return "خطای ناشناخته سرور";
+};
+
 export default function CheckoutPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState(1); // 1: Information, 2: Review, 3: Payment
-  const [expandedSection, setExpandedSection] = useState("shipping");
+  const [expandedSection, setExpandedSection] = useState(null);
 
   // Form States
   const [formData, setFormData] = useState({
     // Shipping Information
-    shipping_first_name: "",
-    shipping_last_name: "",
-    shipping_phone: "",
-    shipping_email: "",
-    shipping_city: "",
-    shipping_address: "",
-    shipping_postal_code: "",
-    shipping_note: "",
-
+    shipping_address: {
+      firstName: "",
+      lastName: "",
+      address: "",
+      city: "",
+      postalCode: "",
+      phone: "",
+      note: "",
+    },
     // Billing Information
     same_as_shipping: true,
-    billing_first_name: "",
-    billing_last_name: "",
-    billing_phone: "",
-    billing_email: "",
-    billing_city: "",
-    billing_address: "",
-    billing_postal_code: "",
-
+    billing_address: {
+      firstName: "",
+      lastName: "",
+      address: "",
+      city: "",
+      postalCode: "",
+      phone: "",
+    },
     // Order Details
     shipping_method: "express",
     payment_method: "online",
@@ -117,10 +193,8 @@ export default function CheckoutPage() {
   });
 
   const [errors, setErrors] = useState({});
-  const [cartItems, setCartItems] = useState([]);
-  const [userAddresses, setUserAddresses] = useState([]);
-  const [selectedAddress, setSelectedAddress] = useState(null);
-  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [checkoutData, setCheckoutData] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
 
   useEffect(() => {
     loadCheckoutData();
@@ -128,86 +202,77 @@ export default function CheckoutPage() {
 
   const loadCheckoutData = async () => {
     try {
-      // Load cart items from localStorage or API
-      const savedCartItems = localStorage.getItem("checkoutItems");
-      if (savedCartItems) {
-        setCartItems(JSON.parse(savedCartItems));
-      } else {
-        // If no cart items, redirect to cart
+      const token = getAuthToken();
+      if (!token) {
+        toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
+        router.push("/auth/user-login");
+        return;
+      }
+
+      // Load checkout data from localStorage
+      const savedCheckoutData = localStorage.getItem("checkoutData");
+      if (!savedCheckoutData) {
         toast.error("سبد خرید شما خالی است");
         router.push("/cart");
         return;
       }
 
-      // Load user addresses if logged in
-      const token = localStorage.getItem("accessToken");
-      if (token) {
-        try {
-          const response = await fetch(`${BASE_API}/users/addresses/`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (response.ok) {
-            const addresses = await response.json();
-            setUserAddresses(addresses);
+      const parsedData = JSON.parse(savedCheckoutData);
+      console.log("Checkout data loaded:", parsedData);
+      setCheckoutData(parsedData);
 
-            // Select default address
-            const defaultAddress = addresses.find((addr) => addr.is_default);
-            if (defaultAddress) {
-              setSelectedAddress(defaultAddress.id);
-              populateFormFromAddress(defaultAddress);
-            }
-          }
-        } catch (error) {
-          console.error("Address fetch error:", error);
+      // Load user info from API
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/me/`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          console.log("User data loaded:", userData);
+          setUserInfo(userData);
+
+          // Pre-fill form with user info
+          setFormData((prev) => ({
+            ...prev,
+            shipping_address: {
+              ...prev.shipping_address,
+              firstName: userData.first_name || "",
+              lastName: userData.last_name || "",
+              phone: userData.phone || "",
+              city: userData.city || "",
+              postalCode: userData.post_code || "",
+            },
+          }));
         }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
       }
-
-      // Load user info if logged in
-      if (token) {
-        try {
-          const response = await fetch(`${BASE_API}/users/me/`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (response.ok) {
-            const userData = await response.json();
-            setFormData((prev) => ({
-              ...prev,
-              shipping_first_name: userData.first_name || "",
-              shipping_last_name: userData.last_name || "",
-              shipping_phone: userData.phone || "",
-              shipping_email: userData.email || "",
-            }));
-          }
-        } catch (error) {
-          console.error("User data fetch error:", error);
-        }
-      }
-
-      // Load coupon discount
-      const savedDiscount = localStorage.getItem("couponDiscount") || 0;
-      setCouponDiscount(parseInt(savedDiscount));
     } catch (error) {
       console.error("Checkout data load error:", error);
       toast.error("خطا در بارگذاری اطلاعات");
+      router.push("/cart");
     } finally {
       setLoading(false);
     }
   };
 
-  const populateFormFromAddress = (address) => {
-    setFormData((prev) => ({
-      ...prev,
-      shipping_city: address.city || "",
-      shipping_address: address.address || "",
-      shipping_postal_code: address.postal_code || "",
-    }));
-  };
-
   const calculateTotals = () => {
-    const subtotal = cartItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
-      0
-    );
+    if (!checkoutData?.totals) {
+      return {
+        subtotal: 0,
+        shipping: 0,
+        discount: 0,
+        total: 0,
+        itemsCount: 0,
+        productsCount: 0,
+      };
+    }
+
+    const { subtotal, discount, itemsCount, productsCount } =
+      checkoutData.totals;
 
     const selectedShipping = shippingMethods.find(
       (method) => method.id === formData.shipping_method
@@ -219,23 +284,15 @@ export default function CheckoutPage() {
       shippingCost = 0;
     }
 
-    const discount =
-      cartItems.reduce((sum, item) => {
-        if (item.original_price > item.price) {
-          return sum + (item.original_price - item.price) * item.quantity;
-        }
-        return sum;
-      }, 0) + couponDiscount;
-
-    const total = subtotal + shippingCost - discount;
+    const total = Math.max(0, subtotal + shippingCost - discount);
 
     return {
       subtotal,
       shipping: shippingCost,
       discount,
       total,
-      itemsCount: cartItems.reduce((sum, item) => sum + item.quantity, 0),
-      productsCount: cartItems.length,
+      itemsCount,
+      productsCount,
       freeShipping: shippingCost === 0,
     };
   };
@@ -243,10 +300,21 @@ export default function CheckoutPage() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    if (name.includes(".")) {
+      const [section, field] = name.split(".");
+      setFormData((prev) => ({
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [field]: type === "checkbox" ? checked : value,
+        },
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: type === "checkbox" ? checked : value,
+      }));
+    }
 
     // Clear error for this field
     if (errors[name]) {
@@ -260,68 +328,58 @@ export default function CheckoutPage() {
     if (name === "same_as_shipping" && checked) {
       setFormData((prev) => ({
         ...prev,
-        billing_first_name: prev.shipping_first_name,
-        billing_last_name: prev.shipping_last_name,
-        billing_phone: prev.shipping_phone,
-        billing_email: prev.shipping_email,
-        billing_city: prev.shipping_city,
-        billing_address: prev.shipping_address,
-        billing_postal_code: prev.shipping_postal_code,
+        billing_address: { ...prev.shipping_address },
       }));
     }
   };
 
   const validateStep1 = () => {
     const newErrors = {};
+    const shipping = formData.shipping_address;
 
     // Shipping validation
-    if (!formData.shipping_first_name.trim()) {
-      newErrors.shipping_first_name = "نام الزامی است";
+    if (!shipping.firstName.trim()) {
+      newErrors["shipping_address.firstName"] = "نام الزامی است";
     }
-    if (!formData.shipping_last_name.trim()) {
-      newErrors.shipping_last_name = "نام خانوادگی الزامی است";
+    if (!shipping.lastName.trim()) {
+      newErrors["shipping_address.lastName"] = "نام خانوادگی الزامی است";
     }
-    if (!formData.shipping_phone.trim()) {
-      newErrors.shipping_phone = "شماره تماس الزامی است";
-    } else if (!/^09\d{9}$/.test(formData.shipping_phone.replace(/\s/g, ""))) {
-      newErrors.shipping_phone = "شماره تماس نامعتبر است";
+    if (!shipping.phone.trim()) {
+      newErrors["shipping_address.phone"] = "شماره تماس الزامی است";
+    } else if (!/^09\d{9}$/.test(shipping.phone.replace(/\s/g, ""))) {
+      newErrors["shipping_address.phone"] = "شماره تماس نامعتبر است";
     }
-    if (
-      formData.shipping_email &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.shipping_email)
-    ) {
-      newErrors.shipping_email = "ایمیل نامعتبر است";
+    if (!shipping.city.trim()) {
+      newErrors["shipping_address.city"] = "شهر الزامی است";
     }
-    if (!formData.shipping_city.trim()) {
-      newErrors.shipping_city = "شهر الزامی است";
+    if (!shipping.address.trim()) {
+      newErrors["shipping_address.address"] = "آدرس الزامی است";
     }
-    if (!formData.shipping_address.trim()) {
-      newErrors.shipping_address = "آدرس الزامی است";
-    }
-    if (!formData.shipping_postal_code.trim()) {
-      newErrors.shipping_postal_code = "کد پستی الزامی است";
-    } else if (!/^\d{10}$/.test(formData.shipping_postal_code)) {
-      newErrors.shipping_postal_code = "کد پستی باید ۱۰ رقم باشد";
+    if (!shipping.postalCode.trim()) {
+      newErrors["shipping_address.postalCode"] = "کد پستی الزامی است";
+    } else if (!/^\d{10}$/.test(shipping.postalCode)) {
+      newErrors["shipping_address.postalCode"] = "کد پستی باید ۱۰ رقم باشد";
     }
 
     // Billing validation if not same as shipping
     if (!formData.same_as_shipping) {
-      if (!formData.billing_first_name.trim()) {
-        newErrors.billing_first_name = "نام الزامی است";
+      const billing = formData.billing_address;
+      if (!billing.firstName.trim()) {
+        newErrors["billing_address.firstName"] = "نام الزامی است";
       }
-      if (!formData.billing_last_name.trim()) {
-        newErrors.billing_last_name = "نام خانوادگی الزامی است";
+      if (!billing.lastName.trim()) {
+        newErrors["billing_address.lastName"] = "نام خانوادگی الزامی است";
       }
-      if (!formData.billing_city.trim()) {
-        newErrors.billing_city = "شهر الزامی است";
+      if (!billing.city.trim()) {
+        newErrors["billing_address.city"] = "شهر الزامی است";
       }
-      if (!formData.billing_address.trim()) {
-        newErrors.billing_address = "آدرس الزامی است";
+      if (!billing.address.trim()) {
+        newErrors["billing_address.address"] = "آدرس الزامی است";
       }
-      if (!formData.billing_postal_code.trim()) {
-        newErrors.billing_postal_code = "کد پستی الزامی است";
-      } else if (!/^\d{10}$/.test(formData.billing_postal_code)) {
-        newErrors.billing_postal_code = "کد پستی باید ۱۰ رقم باشد";
+      if (!billing.postalCode.trim()) {
+        newErrors["billing_address.postalCode"] = "کد پستی الزامی است";
+      } else if (!/^\d{10}$/.test(billing.postalCode)) {
+        newErrors["billing_address.postalCode"] = "کد پستی باید ۱۰ رقم باشد";
       }
     }
 
@@ -349,6 +407,50 @@ export default function CheckoutPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Function to remove products from cart after successful order
+  const removeProductsFromCart = async (productIds) => {
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+
+      // Remove each product from cart
+      for (const productId of productIds) {
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/carts/me/remove-item/${productId}/`,
+            {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          if (!response.ok) {
+            console.warn(`Failed to remove product ${productId} from cart`);
+          }
+        } catch (error) {
+          console.error(`Error removing product ${productId} from cart:`, error);
+        }
+      }
+
+      // Also clear the entire cart as a backup
+      try {
+        await fetch(`${API_BASE_URL}/carts/me/clear/`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      } catch (error) {
+        console.error("Error clearing cart:", error);
+      }
+
+    } catch (error) {
+      console.error("Error in removeProductsFromCart:", error);
+    }
+  };
+
   const handleSubmitOrder = async () => {
     if (!formData.accept_terms) {
       toast.error("لطفا شرایط و ضوابط را تأیید کنید");
@@ -358,83 +460,136 @@ export default function CheckoutPage() {
     setSubmitting(true);
 
     try {
-      const token = localStorage.getItem("accessToken");
+      const token = getAuthToken();
+      if (!token) {
+        toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
+        return;
+      }
+
+      if (!checkoutData?.items || checkoutData.items.length === 0) {
+        toast.error("سبد خرید شما خالی است");
+        return;
+      }
+
       const { total } = calculateTotals();
 
-      // Prepare order data
-      //   const orderData = {
-      //     items: cartItems.map((item) => ({
-      //       product_id: item.product_id,
-      //       quantity: item.quantity,
-      //       price: item.price,
-      //       color: item.color,
-      //       size: item.size,
-      //     })),
-      //     shipping_info: {
-      //       first_name: formData.shipping_first_name,
-      //       last_name: formData.shipping_last_name,
-      //       phone: formData.shipping_phone,
-      //       email: formData.shipping_email,
-      //       city: formData.shipping_city,
-      //       address: formData.shipping_address,
-      //       postal_code: formData.shipping_postal_code,
-      //       note: formData.shipping_note,
-      //     },
-      //     billing_info: formData.same_as_shipping
-      //       ? null
-      //       : {
-      //           first_name: formData.billing_first_name,
-      //           last_name: formData.billing_last_name,
-      //           phone: formData.billing_phone,
-      //           email: formData.billing_email,
-      //           city: formData.billing_city,
-      //           address: formData.billing_address,
-      //           postal_code: formData.billing_postal_code,
-      //         },
-      //     shipping_method: formData.shipping_method,
-      //     payment_method: formData.payment_method,
-      //     total_amount: total,
-      //     coupon_discount: couponDiscount,
-      //     notes: formData.shipping_note,
-      //   };
+      // Extract product IDs to remove from cart later
+      const productIdsToRemove = checkoutData.items.map(item => item.product_id);
+
+      // Prepare order data according to your API
+      const orderData = {
+        cart_items: checkoutData.items.map((item) => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+          price_snapshot: item.price_snapshot,
+          color: item.color,
+          size: item.size,
+        })),
+        shipping_address: formData.shipping_address,
+        payment_method: formData.payment_method,
+        total_amount: total,
+        note: formData.shipping_address.note || "",
+      };
+
+      console.log("Submitting order:", orderData);
 
       // Submit order to API
-      //   const response = await fetch(`${BASE_API}/orders/create/`, {
-      //     method: "POST",
-      //     headers: {
-      //       "Content-Type": "application/json",
-      //       ...(token && { Authorization: `Bearer ${token}` }),
-      //     },
-      //     body: JSON.stringify(orderData),
-      //   });
+      const response = await fetch(`${API_BASE_URL}/orders/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(orderData),
+      });
 
-      //   if (!response.ok) {
-      //     throw new Error("خطا در ثبت سفارش");
-      //   }
+      if (!response.ok) {
+        let errorMessage = "خطا در ثبت سفارش";
+        
+        try {
+          const errorData = await response.json();
+          console.error("Order submission error data:", errorData);
+          
+          // Parse the API error message
+          const parsedError = parseAPIError(errorData);
+          errorMessage = parsedError;
+          
+          // Show specific error in toast
+          toast.error(parsedError, {
+            duration: 5000,
+            style: {
+              maxWidth: "500px",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            },
+          });
+          
+          // Log detailed error for debugging
+          console.error("Order submission error:", parsedError);
+          
+          // If it's a stock/product availability error, redirect to cart
+          if (parsedError.includes("موجودی") || parsedError.includes("موجود نیست")) {
+            setTimeout(() => {
+              router.push("/cart");
+            }, 3000);
+          }
+          
+          throw new Error(parsedError);
+          
+        } catch (jsonError) {
+          // If we can't parse JSON, use HTTP status
+          console.error("Error parsing error response:", jsonError);
+          errorMessage = `خطای سرور: ${response.status} ${response.statusText}`;
+          toast.error(errorMessage);
+          throw new Error(errorMessage);
+        }
+      }
 
-      //   const orderResult = await response.json();
+      const orderResult = await response.json();
+      console.log("Order created successfully:", orderResult);
 
-      //   // Clear cart and redirect
-      //   localStorage.removeItem("checkoutItems");
-      //   localStorage.removeItem("couponDiscount");
+      // ✅ CRITICAL: Remove ordered products from cart
+      try {
+        await removeProductsFromCart(productIdsToRemove);
+        console.log("Products removed from cart successfully");
+        toast.success("محصولات با موفقیت از سبد خرید حذف شدند");
+      } catch (cartError) {
+        console.error("Error removing products from cart:", cartError);
+        toast.error("خطا در حذف محصولات از سبد خرید");
+        // Continue even if cart cleanup fails - order is already created
+      }
 
-      toast.success("سفارش با موفقیت ثبت شد!");
+      // Clear checkout data from localStorage
+      localStorage.removeItem("checkoutData");
+      
+      // Also clear any cart data from localStorage
+      localStorage.removeItem("cartData");
+
+      toast.success("سفارش با موفقیت ثبت شد!", {
+        duration: 4000,
+      });
 
       // Redirect to order confirmation page
-      //   orderResult.order_id
       setTimeout(() => {
-        router.push(`/order-confirmation/${1}`);
+        router.push(`/order-confirmation/${orderResult.id}`);
       }, 1500);
+
     } catch (error) {
-      console.error("Order submission error:", error);
-      toast.error(error.message || "خطا در ثبت سفارش");
+      console.error("Order submission catch error:", error);
+      // Don't show another toast here since we already showed it above
+      // unless it's a different error
+      if (!error.message?.includes("خطا در ثبت سفارش") && 
+          !error.message?.includes("موجودی") &&
+          !error.message?.includes("موجود نیست")) {
+        toast.error(error.message || "خطای ناشناخته در ثبت سفارش");
+      }
     } finally {
       setSubmitting(false);
     }
   };
 
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat("fa-IR").format(price) + " تومان";
+  const getError = (fieldName) => {
+    return errors[fieldName];
   };
 
   const {
@@ -449,15 +604,32 @@ export default function CheckoutPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-12">
-        <div className="container mx-auto px-4">
-          <div className="max-w-6xl mx-auto">
-            <div className="animate-pulse space-y-6">
-              <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-              <div className="h-64 bg-gray-200 rounded"></div>
-              <div className="h-32 bg-gray-200 rounded"></div>
-            </div>
-          </div>
+      <div className="min-h-screen bg-gray-50 py-12 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">در حال بارگذاری...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!getAuthToken()) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <AlertCircle className="w-20 h-20 text-red-400 mx-auto mb-6" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            نیاز به ورود به حساب کاربری
+          </h2>
+          <p className="text-gray-600 mb-8">
+            برای تکمیل خرید، لطفا وارد حساب کاربری خود شوید
+          </p>
+          <button
+            onClick={() => router.push("/auth/user-login")}
+            className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors w-full"
+          >
+            ورود به حساب کاربری
+          </button>
         </div>
       </div>
     );
@@ -472,6 +644,9 @@ export default function CheckoutPage() {
           style: {
             fontFamily: "var(--font-vazirmatn), sans-serif",
             direction: "rtl",
+            borderRadius: "10px",
+            background: "#333",
+            color: "#fff",
           },
         }}
       />
@@ -483,10 +658,10 @@ export default function CheckoutPage() {
             <div className="mb-8">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">
+                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                     تکمیل خرید
                   </h1>
-                  <p className="text-gray-600 mt-1">
+                  <p className="text-gray-600 mt-2">
                     لطفا اطلاعات خود را تکمیل و سفارش را نهایی کنید
                   </p>
                 </div>
@@ -518,7 +693,7 @@ export default function CheckoutPage() {
                       اطلاعات ارسال
                     </span>
                   </div>
-                  <div className="w-20 h-0.5 bg-gray-300 mx-4"></div>
+                  <div className="w-16 h-0.5 bg-gray-300 mx-4"></div>
                   <div className="flex items-center">
                     <div
                       className={`w-10 h-10 ${
@@ -535,7 +710,7 @@ export default function CheckoutPage() {
                       بازبینی سفارش
                     </span>
                   </div>
-                  <div className="w-20 h-0.5 bg-gray-300 mx-4"></div>
+                  <div className="w-16 h-0.5 bg-gray-300 mx-4"></div>
                   <div className="flex items-center">
                     <div
                       className={`w-10 h-10 ${
@@ -576,62 +751,6 @@ export default function CheckoutPage() {
                       </div>
 
                       <div className="p-6">
-                        {/* Saved Addresses */}
-                        {userAddresses.length > 0 && (
-                          <div className="mb-6">
-                            <h3 className="font-medium text-gray-900 mb-3">
-                              انتخاب از آدرس‌های ذخیره شده
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {userAddresses.map((address) => (
-                                <div
-                                  key={address.id}
-                                  onClick={() => {
-                                    setSelectedAddress(address.id);
-                                    populateFormFromAddress(address);
-                                  }}
-                                  className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                                    selectedAddress === address.id
-                                      ? "border-blue-500 bg-blue-50"
-                                      : "border-gray-200 hover:border-gray-300"
-                                  }`}
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div>
-                                      <p className="font-medium text-gray-900">
-                                        {address.title}
-                                      </p>
-                                      <p className="text-sm text-gray-600 mt-1">
-                                        {address.address}
-                                      </p>
-                                      <div className="flex items-center mt-2 text-sm text-gray-500">
-                                        <span className="ml-3">
-                                          {address.city}
-                                        </span>
-                                        <span>
-                                          کد پستی: {address.postal_code}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    {address.is_default && (
-                                      <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
-                                        پیش‌فرض
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                            <button
-                              onClick={() => setSelectedAddress(null)}
-                              className="mt-3 text-blue-600 hover:text-blue-700 text-sm"
-                            >
-                              یا ثبت آدرس جدید
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Shipping Form */}
                         <div className="space-y-6">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
@@ -641,19 +760,19 @@ export default function CheckoutPage() {
                               </label>
                               <input
                                 type="text"
-                                name="shipping_first_name"
-                                value={formData.shipping_first_name}
+                                name="shipping_address.firstName"
+                                value={formData.shipping_address.firstName}
                                 onChange={handleChange}
                                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                  errors.shipping_first_name
+                                  getError("shipping_address.firstName")
                                     ? "border-red-500 bg-red-50"
                                     : "border-gray-300"
                                 }`}
                                 placeholder="نام"
                               />
-                              {errors.shipping_first_name && (
+                              {getError("shipping_address.firstName") && (
                                 <p className="mt-2 text-sm text-red-600">
-                                  {errors.shipping_first_name}
+                                  {getError("shipping_address.firstName")}
                                 </p>
                               )}
                             </div>
@@ -665,19 +784,19 @@ export default function CheckoutPage() {
                               </label>
                               <input
                                 type="text"
-                                name="shipping_last_name"
-                                value={formData.shipping_last_name}
+                                name="shipping_address.lastName"
+                                value={formData.shipping_address.lastName}
                                 onChange={handleChange}
                                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                  errors.shipping_last_name
+                                  getError("shipping_address.lastName")
                                     ? "border-red-500 bg-red-50"
                                     : "border-gray-300"
                                 }`}
                                 placeholder="نام خانوادگی"
                               />
-                              {errors.shipping_last_name && (
+                              {getError("shipping_address.lastName") && (
                                 <p className="mt-2 text-sm text-red-600">
-                                  {errors.shipping_last_name}
+                                  {getError("shipping_address.lastName")}
                                 </p>
                               )}
                             </div>
@@ -692,43 +811,42 @@ export default function CheckoutPage() {
                               </label>
                               <input
                                 type="tel"
-                                name="shipping_phone"
-                                value={formData.shipping_phone}
+                                name="shipping_address.phone"
+                                value={formData.shipping_address.phone}
                                 onChange={handleChange}
                                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                  errors.shipping_phone
+                                  getError("shipping_address.phone")
                                     ? "border-red-500 bg-red-50"
                                     : "border-gray-300"
                                 }`}
                                 placeholder="09123456789"
                               />
-                              {errors.shipping_phone && (
+                              {getError("shipping_address.phone") && (
                                 <p className="mt-2 text-sm text-red-600">
-                                  {errors.shipping_phone}
+                                  {getError("shipping_address.phone")}
                                 </p>
                               )}
                             </div>
 
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                                <Mail className="w-4 h-4 ml-1" />
-                                آدرس ایمیل
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                شهر <span className="text-red-500 mr-1">*</span>
                               </label>
                               <input
-                                type="email"
-                                name="shipping_email"
-                                value={formData.shipping_email}
+                                type="text"
+                                name="shipping_address.city"
+                                value={formData.shipping_address.city}
                                 onChange={handleChange}
                                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                  errors.shipping_email
+                                  getError("shipping_address.city")
                                     ? "border-red-500 bg-red-50"
                                     : "border-gray-300"
                                 }`}
-                                placeholder="example@email.com"
+                                placeholder="شهر"
                               />
-                              {errors.shipping_email && (
+                              {getError("shipping_address.city") && (
                                 <p className="mt-2 text-sm text-red-600">
-                                  {errors.shipping_email}
+                                  {getError("shipping_address.city")}
                                 </p>
                               )}
                             </div>
@@ -737,48 +855,25 @@ export default function CheckoutPage() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-2">
-                                شهر <span className="text-red-500 mr-1">*</span>
-                              </label>
-                              <input
-                                type="text"
-                                name="shipping_city"
-                                value={formData.shipping_city}
-                                onChange={handleChange}
-                                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                  errors.shipping_city
-                                    ? "border-red-500 bg-red-50"
-                                    : "border-gray-300"
-                                }`}
-                                placeholder="شهر"
-                              />
-                              {errors.shipping_city && (
-                                <p className="mt-2 text-sm text-red-600">
-                                  {errors.shipping_city}
-                                </p>
-                              )}
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
                                 کد پستی{" "}
                                 <span className="text-red-500 mr-1">*</span>
                               </label>
                               <input
                                 type="text"
-                                name="shipping_postal_code"
-                                value={formData.shipping_postal_code}
+                                name="shipping_address.postalCode"
+                                value={formData.shipping_address.postalCode}
                                 onChange={handleChange}
                                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                  errors.shipping_postal_code
+                                  getError("shipping_address.postalCode")
                                     ? "border-red-500 bg-red-50"
                                     : "border-gray-300"
                                 }`}
                                 placeholder="۱۰ رقمی"
                                 maxLength="10"
                               />
-                              {errors.shipping_postal_code && (
+                              {getError("shipping_address.postalCode") && (
                                 <p className="mt-2 text-sm text-red-600">
-                                  {errors.shipping_postal_code}
+                                  {getError("shipping_address.postalCode")}
                                 </p>
                               )}
                             </div>
@@ -790,20 +885,20 @@ export default function CheckoutPage() {
                               <span className="text-red-500 mr-1">*</span>
                             </label>
                             <textarea
-                              name="shipping_address"
-                              value={formData.shipping_address}
+                              name="shipping_address.address"
+                              value={formData.shipping_address.address}
                               onChange={handleChange}
                               rows="3"
                               className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                errors.shipping_address
+                                getError("shipping_address.address")
                                   ? "border-red-500 bg-red-50"
                                   : "border-gray-300"
                               }`}
                               placeholder="خیابان، کوچه، پلاک، طبقه، واحد"
                             />
-                            {errors.shipping_address && (
+                            {getError("shipping_address.address") && (
                               <p className="mt-2 text-sm text-red-600">
-                                {errors.shipping_address}
+                                {getError("shipping_address.address")}
                               </p>
                             )}
                           </div>
@@ -813,8 +908,8 @@ export default function CheckoutPage() {
                               یادداشت برای فروشنده (اختیاری)
                             </label>
                             <textarea
-                              name="shipping_note"
-                              value={formData.shipping_note}
+                              name="shipping_address.note"
+                              value={formData.shipping_address.note}
                               onChange={handleChange}
                               rows="2"
                               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -822,163 +917,6 @@ export default function CheckoutPage() {
                             />
                           </div>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Billing Information */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6">
-                      <div className="p-6 border-b border-gray-200">
-                        <h2 className="text-lg font-semibold text-gray-900">
-                          اطلاعات صورتحساب
-                        </h2>
-                      </div>
-
-                      <div className="p-6">
-                        <div className="flex items-center mb-6">
-                          <input
-                            type="checkbox"
-                            id="same_as_shipping"
-                            name="same_as_shipping"
-                            checked={formData.same_as_shipping}
-                            onChange={handleChange}
-                            className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                          />
-                          <label
-                            htmlFor="same_as_shipping"
-                            className="mr-3 text-gray-900"
-                          >
-                            آدرس صورتحساب همان آدرس ارسال است
-                          </label>
-                        </div>
-
-                        {!formData.same_as_shipping && (
-                          <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  نام{" "}
-                                  <span className="text-red-500 mr-1">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  name="billing_first_name"
-                                  value={formData.billing_first_name}
-                                  onChange={handleChange}
-                                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                    errors.billing_first_name
-                                      ? "border-red-500 bg-red-50"
-                                      : "border-gray-300"
-                                  }`}
-                                  placeholder="نام"
-                                />
-                                {errors.billing_first_name && (
-                                  <p className="mt-2 text-sm text-red-600">
-                                    {errors.billing_first_name}
-                                  </p>
-                                )}
-                              </div>
-
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  نام خانوادگی{" "}
-                                  <span className="text-red-500 mr-1">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  name="billing_last_name"
-                                  value={formData.billing_last_name}
-                                  onChange={handleChange}
-                                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                    errors.billing_last_name
-                                      ? "border-red-500 bg-red-50"
-                                      : "border-gray-300"
-                                  }`}
-                                  placeholder="نام خانوادگی"
-                                />
-                                {errors.billing_last_name && (
-                                  <p className="mt-2 text-sm text-red-600">
-                                    {errors.billing_last_name}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  شهر{" "}
-                                  <span className="text-red-500 mr-1">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  name="billing_city"
-                                  value={formData.billing_city}
-                                  onChange={handleChange}
-                                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                    errors.billing_city
-                                      ? "border-red-500 bg-red-50"
-                                      : "border-gray-300"
-                                  }`}
-                                  placeholder="شهر"
-                                />
-                                {errors.billing_city && (
-                                  <p className="mt-2 text-sm text-red-600">
-                                    {errors.billing_city}
-                                  </p>
-                                )}
-                              </div>
-
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  کد پستی{" "}
-                                  <span className="text-red-500 mr-1">*</span>
-                                </label>
-                                <input
-                                  type="text"
-                                  name="billing_postal_code"
-                                  value={formData.billing_postal_code}
-                                  onChange={handleChange}
-                                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                    errors.billing_postal_code
-                                      ? "border-red-500 bg-red-50"
-                                      : "border-gray-300"
-                                  }`}
-                                  placeholder="۱۰ رقمی"
-                                  maxLength="10"
-                                />
-                                {errors.billing_postal_code && (
-                                  <p className="mt-2 text-sm text-red-600">
-                                    {errors.billing_postal_code}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                آدرس کامل{" "}
-                                <span className="text-red-500 mr-1">*</span>
-                              </label>
-                              <textarea
-                                name="billing_address"
-                                value={formData.billing_address}
-                                onChange={handleChange}
-                                rows="3"
-                                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                  errors.billing_address
-                                    ? "border-red-500 bg-red-50"
-                                    : "border-gray-300"
-                                }`}
-                                placeholder="خیابان، کوچه، پلاک، طبقه، واحد"
-                              />
-                              {errors.billing_address && (
-                                <p className="mt-2 text-sm text-red-600">
-                                  {errors.billing_address}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
 
@@ -1019,13 +957,13 @@ export default function CheckoutPage() {
                                     <span className="font-medium text-gray-900 mr-2">
                                       {method.name}
                                     </span>
-                                    {method.cost === 0 ||
-                                    (subtotal >= method.freeThreshold &&
-                                      method.cost > 0) ? (
+                                    {(method.cost === 0 ||
+                                      (subtotal >= method.freeThreshold &&
+                                        method.cost > 0)) && (
                                       <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded">
                                         رایگان
                                       </span>
-                                    ) : null}
+                                    )}
                                   </div>
                                   <p className="text-sm text-gray-600 mt-1">
                                     {method.description}
@@ -1090,22 +1028,36 @@ export default function CheckoutPage() {
                       <div className="p-6">
                         {/* Order Items */}
                         <div className="mb-8">
-                          <h3 className="font-medium text-gray-900 mb-4">
+                          <h3 className="font-medium text-gray-900 mb-4 flex items-center">
+                            <ClipboardList className="w-5 h-5 ml-2" />
                             محصولات سفارش
                           </h3>
                           <div className="space-y-4">
-                            {cartItems.map((item) => (
+                            {checkoutData?.items?.map((item, index) => (
                               <div
-                                key={item.id}
+                                key={index}
                                 className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
                               >
                                 <div className="flex items-center">
-                                  <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center ml-4">
-                                    <div className="text-xl">🛍️</div>
-                                  </div>
+                                  {item.product?.images?.[0] ? (
+                                    <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden ml-4">
+                                      <img
+                                        src={
+                                          item.product.images[0].url ||
+                                          item.product.images[0]
+                                        }
+                                        alt={item.product.title}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center ml-4">
+                                      <Package className="w-8 h-8 text-gray-400" />
+                                    </div>
+                                  )}
                                   <div>
                                     <p className="font-medium text-gray-900">
-                                      {item.name}
+                                      {item.product?.title || "محصول"}
                                     </p>
                                     <div className="flex items-center mt-1 text-sm text-gray-600">
                                       {item.color && (
@@ -1120,14 +1072,24 @@ export default function CheckoutPage() {
                                         تعداد: {item.quantity}
                                       </span>
                                     </div>
+                                    <div className="flex items-center mt-1 text-xs text-gray-500">
+                                      <Store className="w-3 h-3 ml-1" />
+                                      <span>
+                                        {item.store?.store_name ||
+                                          item.store?.full_name ||
+                                          "فروشگاه"}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                                 <div className="text-left">
                                   <p className="font-bold text-gray-900">
-                                    {formatPrice(item.price * item.quantity)}
+                                    {formatPrice(
+                                      item.price_snapshot * item.quantity
+                                    )}
                                   </p>
                                   <p className="text-sm text-gray-500">
-                                    هر عدد: {formatPrice(item.price)}
+                                    هر عدد: {formatPrice(item.price_snapshot)}
                                   </p>
                                 </div>
                               </div>
@@ -1138,7 +1100,8 @@ export default function CheckoutPage() {
                         {/* Shipping Information */}
                         <div className="mb-8">
                           <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-medium text-gray-900">
+                            <h3 className="font-medium text-gray-900 flex items-center">
+                              <MapPin className="w-5 h-5 ml-2" />
                               اطلاعات ارسال
                             </h3>
                             <button
@@ -1150,27 +1113,27 @@ export default function CheckoutPage() {
                           </div>
                           <div className="bg-gray-50 p-4 rounded-lg">
                             <p className="font-medium text-gray-900">
-                              {formData.shipping_first_name}{" "}
-                              {formData.shipping_last_name}
+                              {formData.shipping_address.firstName}{" "}
+                              {formData.shipping_address.lastName}
                             </p>
                             <p className="text-gray-600 mt-1">
-                              {formData.shipping_address}
+                              {formData.shipping_address.address}
                             </p>
                             <div className="flex items-center mt-2 text-sm text-gray-500">
                               <span className="ml-3">
-                                {formData.shipping_city}
+                                {formData.shipping_address.city}
                               </span>
                               <span>
-                                کد پستی: {formData.shipping_postal_code}
+                                کد پستی: {formData.shipping_address.postalCode}
                               </span>
                               <span className="mr-4">
-                                تلفن: {formData.shipping_phone}
+                                تلفن: {formData.shipping_address.phone}
                               </span>
                             </div>
-                            {formData.shipping_note && (
+                            {formData.shipping_address.note && (
                               <p className="mt-2 text-sm text-gray-600">
                                 <span className="font-medium">یادداشت:</span>{" "}
-                                {formData.shipping_note}
+                                {formData.shipping_address.note}
                               </p>
                             )}
                           </div>
@@ -1179,7 +1142,8 @@ export default function CheckoutPage() {
                         {/* Payment Method */}
                         <div className="mb-8">
                           <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-medium text-gray-900">
+                            <h3 className="font-medium text-gray-900 flex items-center">
+                              <CreditCard className="w-5 h-5 ml-2" />
                               روش پرداخت
                             </h3>
                             <button
@@ -1476,7 +1440,7 @@ export default function CheckoutPage() {
                           >
                             {submitting ? (
                               <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white ml-2"></div>
+                                <Loader2 className="w-5 h-5 ml-2 animate-spin" />
                                 در حال پردازش...
                               </>
                             ) : (
@@ -1496,7 +1460,7 @@ export default function CheckoutPage() {
               {/* Right Column - Order Summary */}
               <div className="space-y-6">
                 {/* Order Summary Card */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 top-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 sticky top-6">
                   <div className="p-6 border-b border-gray-200">
                     <h2 className="text-lg font-semibold text-gray-900">
                       خلاصه سفارش
@@ -1532,18 +1496,11 @@ export default function CheckoutPage() {
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600">تخفیف کالاها</span>
-                        <span className="text-green-600">
-                          -{formatPrice(discount - couponDiscount)}
-                        </span>
-                      </div>
-
-                      {couponDiscount > 0 && (
-                        <div className="flex items-center justify-between bg-green-50 p-3 rounded-lg">
-                          <span className="text-green-700">تخفیف کد تخفیف</span>
-                          <span className="text-green-700 font-medium">
-                            -{formatPrice(couponDiscount)}
+                      {discount > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-600">تخفیف محصولات</span>
+                          <span className="text-green-600">
+                            -{formatPrice(discount)}
                           </span>
                         </div>
                       )}
@@ -1588,27 +1545,20 @@ export default function CheckoutPage() {
 
                 {/* Need Help */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">
+                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+                    <Phone className="w-5 h-5 ml-2" />
                     نیاز به راهنمایی دارید؟
                   </h3>
                   <div className="space-y-3">
-                    <div className="flex items-center p-3 border border-gray-200 rounded-lg">
-                      <Phone className="w-5 h-5 text-gray-400 ml-2" />
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          ۰۲۱-۱۲۳۴۵۶۷۸
-                        </p>
-                        <p className="text-sm text-gray-500">پشتیبانی تلفنی</p>
-                      </div>
+                    <div className="p-3 border border-gray-200 rounded-lg">
+                      <p className="font-medium text-gray-900">۰۲۱-۱۲۳۴۵۶۷۸</p>
+                      <p className="text-sm text-gray-500">پشتیبانی تلفنی</p>
                     </div>
-                    <div className="flex items-center p-3 border border-gray-200 rounded-lg">
-                      <Clock className="w-5 h-5 text-gray-400 ml-2" />
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          هر روز ۹ صبح تا ۹ شب
-                        </p>
-                        <p className="text-sm text-gray-500">ساعات کاری</p>
-                      </div>
+                    <div className="p-3 border border-gray-200 rounded-lg">
+                      <p className="font-medium text-gray-900">
+                        هر روز ۹ صبح تا ۹ شب
+                      </p>
+                      <p className="text-sm text-gray-500">ساعات کاری</p>
                     </div>
                   </div>
                 </div>
@@ -1631,10 +1581,6 @@ export default function CheckoutPage() {
                     <li className="flex items-center">
                       <div className="w-2 h-2 bg-white rounded-full ml-2"></div>
                       <span>حریم خصوصی اطلاعات</span>
-                    </li>
-                    <li className="flex items-center">
-                      <div className="w-2 h-2 bg-white rounded-full ml-2"></div>
-                      <span>ضمانت بازگشت وجه</span>
                     </li>
                   </ul>
                 </div>
