@@ -105,54 +105,56 @@ const parsePrice = (price) => {
 // Function to parse API errors
 const parseAPIError = (errorData) => {
   console.log("Raw error data:", errorData);
-  
-  if (typeof errorData === 'string') {
+
+  if (typeof errorData === "string") {
     return errorData;
   }
-  
+
   if (Array.isArray(errorData)) {
     // Handle array of errors (like your example: ['محصول Foodd موجود نیست یا موجودی کافی ندارد'])
-    return errorData.map(err => {
-      if (typeof err === 'string') return err;
-      if (err.message) return err.message;
-      if (err.detail) return err.detail;
-      return JSON.stringify(err);
-    }).join(' | ');
+    return errorData
+      .map((err) => {
+        if (typeof err === "string") return err;
+        if (err.message) return err.message;
+        if (err.detail) return err.detail;
+        return JSON.stringify(err);
+      })
+      .join(" | ");
   }
-  
-  if (typeof errorData === 'object') {
+
+  if (typeof errorData === "object") {
     if (errorData.detail) {
       return errorData.detail;
     }
-    
+
     if (errorData.message) {
       return errorData.message;
     }
-    
+
     if (errorData.non_field_errors) {
       if (Array.isArray(errorData.non_field_errors)) {
-        return errorData.non_field_errors.join(' | ');
+        return errorData.non_field_errors.join(" | ");
       }
       return errorData.non_field_errors;
     }
-    
+
     // Handle field-specific errors
     const fieldErrors = [];
     for (const [field, errors] of Object.entries(errorData)) {
       if (Array.isArray(errors)) {
-        fieldErrors.push(`${field}: ${errors.join(', ')}`);
-      } else if (typeof errors === 'string') {
+        fieldErrors.push(`${field}: ${errors.join(", ")}`);
+      } else if (typeof errors === "string") {
         fieldErrors.push(`${field}: ${errors}`);
       }
     }
-    
+
     if (fieldErrors.length > 0) {
-      return fieldErrors.join(' | ');
+      return fieldErrors.join(" | ");
     }
-    
+
     return JSON.stringify(errorData);
   }
-  
+
   return "خطای ناشناخته سرور";
 };
 
@@ -430,7 +432,10 @@ export default function CheckoutPage() {
             console.warn(`Failed to remove product ${productId} from cart`);
           }
         } catch (error) {
-          console.error(`Error removing product ${productId} from cart:`, error);
+          console.error(
+            `Error removing product ${productId} from cart:`,
+            error
+          );
         }
       }
 
@@ -445,7 +450,6 @@ export default function CheckoutPage() {
       } catch (error) {
         console.error("Error clearing cart:", error);
       }
-
     } catch (error) {
       console.error("Error in removeProductsFromCart:", error);
     }
@@ -474,7 +478,9 @@ export default function CheckoutPage() {
       const { total } = calculateTotals();
 
       // Extract product IDs to remove from cart later
-      const productIdsToRemove = checkoutData.items.map(item => item.product_id);
+      const productIdsToRemove = checkoutData.items.map(
+        (item) => item.product_id
+      );
 
       // Prepare order data according to your API
       const orderData = {
@@ -505,15 +511,15 @@ export default function CheckoutPage() {
 
       if (!response.ok) {
         let errorMessage = "خطا در ثبت سفارش";
-        
+
         try {
           const errorData = await response.json();
           console.error("Order submission error data:", errorData);
-          
+
           // Parse the API error message
           const parsedError = parseAPIError(errorData);
           errorMessage = parsedError;
-          
+
           // Show specific error in toast
           toast.error(parsedError, {
             duration: 5000,
@@ -523,19 +529,21 @@ export default function CheckoutPage() {
               wordBreak: "break-word",
             },
           });
-          
+
           // Log detailed error for debugging
           console.error("Order submission error:", parsedError);
-          
+
           // If it's a stock/product availability error, redirect to cart
-          if (parsedError.includes("موجودی") || parsedError.includes("موجود نیست")) {
+          if (
+            parsedError.includes("موجودی") ||
+            parsedError.includes("موجود نیست")
+          ) {
             setTimeout(() => {
               router.push("/cart");
             }, 3000);
           }
-          
+
           throw new Error(parsedError);
-          
         } catch (jsonError) {
           // If we can't parse JSON, use HTTP status
           console.error("Error parsing error response:", jsonError);
@@ -561,7 +569,7 @@ export default function CheckoutPage() {
 
       // Clear checkout data from localStorage
       localStorage.removeItem("checkoutData");
-      
+
       // Also clear any cart data from localStorage
       localStorage.removeItem("cartData");
 
@@ -571,16 +579,17 @@ export default function CheckoutPage() {
 
       // Redirect to order confirmation page
       setTimeout(() => {
-        router.push(`/order-confirmation/${orderResult.id}`);
+        router.push(`/order-confirmation/${orderResult.data.id}`);
       }, 1500);
-
     } catch (error) {
       console.error("Order submission catch error:", error);
       // Don't show another toast here since we already showed it above
       // unless it's a different error
-      if (!error.message?.includes("خطا در ثبت سفارش") && 
-          !error.message?.includes("موجودی") &&
-          !error.message?.includes("موجود نیست")) {
+      if (
+        !error.message?.includes("خطا در ثبت سفارش") &&
+        !error.message?.includes("موجودی") &&
+        !error.message?.includes("موجود نیست")
+      ) {
         toast.error(error.message || "خطای ناشناخته در ثبت سفارش");
       }
     } finally {
