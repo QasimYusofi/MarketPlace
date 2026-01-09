@@ -368,7 +368,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             return [IsCustomerOrAdmin()]
         if self.action in ['store_products']:
             # Authenticated users can fetch products by store owner
-            return [permissions.IsAuthenticated()]
+            return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
@@ -591,11 +591,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         # Serialize products
         serializer = self.get_serializer(products, many=True)
         return Response({
-            'store': {
-                'id': str(store_owner.id),
-                'store_name': store_owner.store_name,
-                'store_rating': store_owner.store_rating or {'average': 0, 'count': 0}
-            },
+            'store': StoreOwnerSerializer(store_owner).data,
             'products': serializer.data,
             'total_products': len(serializer.data)
         })
@@ -1165,12 +1161,19 @@ class OrderViewSet(viewsets.ModelViewSet):
         """Create a new order from cart items"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        order = serializer.save()
-        serializer = self.get_serializer(order)
+        orders = serializer.save()
+        
+        # Handle list of orders (when products are from different stores)
+        if isinstance(orders, list):
+            serializer = self.get_serializer(orders, many=True)
+            data = serializer.data
+        else:
+            serializer = self.get_serializer(orders)
+            data = serializer.data
+
         return Response({
             'detail': 'Order created successfully',
-            'data':serializer.data
-          
+            'data': data
         }, status=status.HTTP_201_CREATED)
 
     # Additional Order Actions
