@@ -161,12 +161,9 @@ export default function Products() {
     const storeName = currentStore.store_name || "STORE";
     const year = new Date().getFullYear();
     console.log("products: length");
-    console.log(products[products.length - 1]["sku"].split("-")[2]);
-
+    // console.log(products[products.length - 1]["sku"].split("-")[2]);
     const productListLength =
-      products.length == 0
-        ? Number(1)
-        : Number(products[products.length - 1]["sku"].split("-")[2]) + 1;
+      Number(products[products.length - 1]["sku"].split("-")[2]) + 1;
     console.log(productListLength);
 
     // Clean store name (remove spaces and special characters, take first 4 chars)
@@ -1055,7 +1052,7 @@ export default function Products() {
                     })}
                     className="w-full px-4 py-4 pr-12 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-white/50"
                     placeholder="کد محصول به صورت خودکار تولید می‌شود"
-                    // readOnly
+                    readOnly
                   />
                   <button
                     type="button"

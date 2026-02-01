@@ -10,7 +10,6 @@ import featuredProducts from "./../data/featuredProducts.json";
 import siteConfig from "./../data/siteConfig.json";
 import FooterPage from "./../components/Footer/footer";
 import Header from "./../components/Header/header";
-import ModernStorePage from "./stores/page";
 // import ModernStorePage from "./stores/page";
 export default function HomePage() {
   const [activeFilter, setActiveFilter] = useState(0);
@@ -90,9 +89,7 @@ export default function HomePage() {
       </section>
 
       {/* Products Grid */}
-      <div className="max-w-7xl mx-auto">
-        <ModernStorePage />
-      </div>
+      <div className="max-w-7xl mx-auto">{/* <ModernStorePage /> */}</div>
 
       {/* Featured Products Section */}
       <div className="max-w-7xl mx-auto px-4 pb-16">
