@@ -108,3 +108,34 @@ class IsStoreOwner(BasePermission):
         if not user or not user.is_authenticated:
             return False
         return hasattr(user, 'user_type') and user.user_type == 'store_owner'
+
+
+class IsStoreOwnerForOrders(BasePermission):
+    """
+    Permission check: store owner can manage their own store's orders, admin can manage all.
+    Allows store owners to use PUT/PATCH on orders for their store.
+    """
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        # Admin can access all
+        if getattr(user, 'is_superuser', False):
+            return True
+        # Store owners can access their own orders
+        if hasattr(user, 'user_type') and user.user_type == 'store_owner':
+            return True
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        # Admin can access all objects
+        if getattr(user, 'is_superuser', False):
+            return True
+        # Store owner can only access their own store's orders
+        if hasattr(user, 'user_type') and user.user_type == 'store_owner':
+            if hasattr(obj, 'store'):
+                return obj.store.id == user.id
+        return False

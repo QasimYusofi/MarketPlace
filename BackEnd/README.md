@@ -12,7 +12,7 @@
     "first_name": "Qasim", 
     "last_name": "Yusofi", 
     "phone": "09926067529", 
-    "password": "StrongPass@123", 
+    "password": "12345", 
     "email": "qasim@gmail.com", 
     "post_code": "1234567890", 
     "birthday": "2001-04-25", 
@@ -24,7 +24,7 @@
 - POST http://127.0.0.1:8000/api/auth/token/
 - body
   {
-    "phone":"09926067529" ,"password":"StrongPass@123"
+    "phone":"09926067529" ,"password":"12345"
   } 
 
 then get the access token
@@ -67,7 +67,7 @@ then get the access token
   "first_name": "علی",
   "last_name": "رضایی",
   "phone": "09926067528",
-  "password": "123456",
+  "password": "12345",
   "store_name": "فروشگاه الکترونیک رضایی"
 }
 
@@ -348,6 +348,46 @@ Content-Type: application/json
 {
   "tracking_number": "TRK123456789"
 }
+```
+
+### Update Order Status using PUT (Full Update)
+```bash
+PUT /api/orders/{id}/
+Authorization: Bearer <store_owner_token>
+Content-Type: application/json
+
+{
+  "status": "shipped",
+  "tracking_number": "TRK123456789",
+  "payment_method": "online",
+  "shipping_address": {
+    "firstName": "علی",
+    "lastName": "رضایی",
+    "address": "تهران، خیابان ولیعصر",
+    "city": "تهران",
+    "postalCode": "1234567890",
+    "phone": "09926067529"
+  }
+}
+```
+
+### Update Order Status using PATCH (Partial Update)
+```bash
+PATCH /api/orders/{id}/
+Authorization: Bearer <store_owner_token>
+Content-Type: application/json
+
+{
+  "status": "delivered"
+}
+```
+
+**Valid Order Status Values:**
+- `pending` -
+- `paid` - 
+- `shipped` -
+- `delivered` -
+- `cancelled` -
 
 //////////////////////////////
 # Wishlist

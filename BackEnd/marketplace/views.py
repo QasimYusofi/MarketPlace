@@ -6,7 +6,7 @@ from django.http import HttpResponse
 from django.db.models import Q
 from .models import Customer, StoreOwner, Product, ProductRating, Cart, Order, OrderItem, Wishlist, WishlistItem, Comment
 from .serializers import CartItemSerializer, CustomerSerializer, StoreOwnerSerializer, ProductSerializer, ProductRatingSerializer, CartSerializer, OrderSerializer, OrderItemSerializer, WishlistSerializer, WishlistItemSerializer, AddToWishlistSerializer, CommentSerializer
-from .permissions import IsAdminRole, IsSelfOrAdmin, IsStoreOwner, IsStoreOwnerOrAdmin, IsCustomer, IsCustomerOrAdmin
+from .permissions import IsAdminRole, IsSelfOrAdmin, IsStoreOwner, IsStoreOwnerOrAdmin, IsCustomer, IsCustomerOrAdmin, IsStoreOwnerForOrders
 
 
 
@@ -1151,7 +1151,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             return [IsCustomerOrAdmin()]
         if self.action in ['update', 'partial_update']:
             # Store owners can update their store's orders, admins can update all
-            return [IsStoreOwnerOrAdmin()]
+            return [IsStoreOwnerForOrders()]
         if self.action in ['destroy']:
             # Only admins can delete orders
             return [IsAdminRole()]
