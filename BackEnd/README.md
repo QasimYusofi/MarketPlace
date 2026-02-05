@@ -3,6 +3,8 @@
 - python manage.py migrate
 - python manage.py runserver
 - python manage.py createsuperuser    /// create admin account
+- python manage.py test marketplace  /// test models
+- python manage.py test marketplace  /// test api
 
 # Customer
 ## Post sample to create user:

@@ -1,5 +1,5 @@
 from django.test import TestCase
-from django.core.exceptions import ValidationError
+
 from marketplace.models import (
     Customer, StoreOwner, Product, ProductImage, ProductRating,
     Cart, Order, OrderItem, Comment, Wishlist, WishlistItem
@@ -591,6 +591,7 @@ class WishlistTestCase(TestCase):
         self.assertTrue(result['cleared'])
         self.assertEqual(self.wishlist.item_count, 0)
 
+
     def test_wishlist_unique_constraint(self):
         """Test unique product per wishlist"""
         self.wishlist.add_product(self.product1.id)
@@ -599,3 +600,4 @@ class WishlistTestCase(TestCase):
                 wishlist=self.wishlist,
                 product=self.product1
             )
+

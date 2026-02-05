@@ -647,23 +647,30 @@ class CommentViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(comment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def update(self, instance, validated_data):
+    def update(self, request, *args, **kwargs):
         """Update comment - only allow content updates"""
+        instance = self.get_object()
         # Check if user can update this comment (only author)
-        if instance.author != self.request.user:
+        if str(instance.author.id) != str(request.user.id):
             raise PermissionDenied("You can only update your own comments")
 
+        # Handle partial update
+        partial = kwargs.pop('partial', False)
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        
         # Only allow updating content
-        if 'content' in validated_data:
-            instance.content = validated_data['content']
+        if 'content' in serializer.validated_data:
+            instance.content = serializer.validated_data['content']
             instance.save()
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
-    def destroy(self, instance, *args, **kwargs):
+    def destroy(self, request, *args, **kwargs):
         """Delete comment - only author or admin can delete"""
-        if instance.author != self.request.user and not self.request.user.is_superuser:
+        instance = self.get_object()
+        if str(instance.author.id) != str(request.user.id) and not request.user.is_superuser:
             raise PermissionDenied("You can only delete your own comments")
 
         # Soft delete or hard delete? For now, hard delete
@@ -839,6 +846,30 @@ class CategoryViewSet(viewsets.ViewSet):
         """Allow anyone to access category endpoints"""
         return [permissions.AllowAny()]
 
+    def list(self, request):
+        """Get list of available categories"""
+        categories = [
+            {'id': 'men', 'name': 'Men', 'display_name': 'مردانه'},
+            {'id': 'women', 'name': 'Women', 'display_name': 'زنانه'},
+            {'id': 'kids', 'name': 'Kids', 'display_name': 'بچگانه'}
+        ]
+        return Response(categories)
+
+    def retrieve(self, request, pk=None):
+        """Get details for a specific category"""
+        valid_categories = {'men': 'Men', 'women': 'Women', 'kids': 'Kids'}
+        if pk not in valid_categories:
+            return Response(
+                {'detail': 'Invalid category'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        category_display = {'men': 'مردانه', 'women': 'زنانه', 'kids': 'بچگانه'}
+        return Response({
+            'id': pk,
+            'name': valid_categories[pk],
+            'display_name': category_display.get(pk, pk)
+        })
+
     @action(detail=True, methods=['get'], url_path='stores')
     def stores_by_category(self, request, pk=None):
         """Get stores that have products in the specified category"""
@@ -936,10 +967,10 @@ class CartViewSet(viewsets.ModelViewSet):
 
         if user.is_authenticated and hasattr(user, 'user_type') and user.user_type == 'customer':
             # Customers can only see their own cart
-            return Cart.objects.filter(user_id=user)
+            return Cart.objects.filter(user_id=user).order_by('-created_at')
         elif user.is_authenticated and user.is_superuser:
             # Admins can see all carts
-            return Cart.objects.all()
+            return Cart.objects.all().order_by('-created_at')
         else:
             # Anonymous users or other types can't see carts
             return Cart.objects.none()
@@ -1130,13 +1161,13 @@ class OrderViewSet(viewsets.ModelViewSet):
         if user.is_authenticated and hasattr(user, 'user_type'):
             if user.user_type == 'customer':
                 # Customers can only see their own orders
-                return Order.objects.filter(user=user)
+                return Order.objects.filter(user=user).order_by('-created_at')
             elif user.user_type == 'store_owner':
                 # Store owners can only see orders for their store
-                return Order.objects.filter(store=user)
+                return Order.objects.filter(store=user).order_by('-created_at')
             elif user.is_superuser:
                 # Admins can see all orders
-                return Order.objects.all()
+                return Order.objects.all().order_by('-created_at')
 
         # Anonymous users can't see orders
         return Order.objects.none()
