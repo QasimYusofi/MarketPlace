@@ -81,6 +81,9 @@ DATABASES = {
           "ENGINE": "django_mongodb_backend",
           "HOST": "mongodb://localhost:27017/",
           "NAME": "marketplace_db",
+          "TEST": {
+              "NAME": "marketplace_test_db",
+          },
     },
 }
 
