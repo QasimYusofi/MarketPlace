@@ -538,14 +538,16 @@ export default function StoreOwnerOrderDetailsPage() {
 
     try {
       setLoading(true);
-// orders/{id}/
+      // orders/{id}/
       const response = await fetch(`${API_BASE_URL}/orders/${params.id}/`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      console.log(response)
+      console.log("my order response");
+      console.log(response);
+
       if (!response.ok) {
         if (response.status === 401) {
           localStorage.removeItem("accessToken");
@@ -555,7 +557,7 @@ export default function StoreOwnerOrderDetailsPage() {
         }
         if (response.status === 404) {
           toast.error("سفارش مورد نظر یافت نشد");
-          router.push("/store-owner/dashboard/orders");
+          router.push("/dashboard/orders");
           return;
         }
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -827,7 +829,7 @@ export default function StoreOwnerOrderDetailsPage() {
           سفارش مورد نظر وجود ندارد یا حذف شده است
         </p>
         <Link
-          href="/store-owner/dashboard/orders"
+          href="/dashboard/orders"
           className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           بازگشت به سفارشات

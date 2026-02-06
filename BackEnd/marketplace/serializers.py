@@ -994,8 +994,8 @@ class ProductRatingSerializer(serializers.ModelSerializer):
 
     def validate_rating(self, value):
         """Validate rating is between 0 and 5"""
-        if not isinstance(value, (int, float, str)):
-            raise serializers.ValidationError("امتیاز باید یک عدد باشد")
+        # if not isinstance(value, (int, float, str)):
+        #     raise serializers.ValidationError("امتیاز باید یک عدد باشد")
 
         try:
             rating = float(value)

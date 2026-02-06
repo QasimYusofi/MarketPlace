@@ -444,7 +444,7 @@ const ProductDetailPage = () => {
       console.log("Add to cart response:", data);
 
       if (response.ok) {
-        toast.success("محصول به سبد خرید اضافه شد ✓");
+        toast.success("محصول به سبد خرید اضافه شد ");
         // Update cart count
         window.dispatchEvent(new CustomEvent("cartUpdated"));
       } else {
@@ -547,7 +547,7 @@ const ProductDetailPage = () => {
       console.log("Add comment response:", data);
 
       if (response.ok) {
-        toast.success("نظر شما با موفقیت ثبت شد ✓");
+        toast.success("نظر شما با موفقیت ثبت شد ");
         setNewComment("");
         setRating(0);
         fetchComments();
@@ -590,7 +590,7 @@ const ProductDetailPage = () => {
 
       if (response.ok) {
         setRating(selectedRating);
-        toast.success(`امتیاز ${selectedRating} ثبت شد ✓`);
+        toast.success(`امتیاز ${selectedRating} ثبت شد `);
         fetchProductDetails(); // Refresh product data
       } else {
         console.error("Rate product failed:", data);

@@ -1,7 +1,7 @@
 "use client";
 import navigationData from "../../data/navigationData.json";
 import siteConfig from "../../data/siteConfig.json";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -19,13 +19,17 @@ import {
   FiSettings,
   FiShoppingBag,
   FiHome,
+  FiClock,
+  FiTrendingUp,
+  FiPackage,
 } from "react-icons/fi";
 
-import { Store, LogIn, User } from "lucide-react";
+import { Store, LogIn, User, Search, X } from "lucide-react";
 const BASE_API = `${process.env.NEXT_PUBLIC_API_URL}`;
 
 export default function Header() {
-  const [cartCount, setCartCount] = useState(4);
+  const [cartCount, setCartCount] = useState(0);
+  const [wishlistCount, setWishlistCount] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -35,21 +39,210 @@ export default function Header() {
   const [user, setUser] = useState(null);
   const [storeOwner, setStoreOwner] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState({ show: false, message: "", type: "" });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchInputRef = useRef(null);
+  const searchResultsRef = useRef(null);
 
-  // Show toast notification
-  const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
-    setTimeout(() => {
-      setToast({ show: false, message: "", type: "" });
-    }, 3000);
+  // Initialize recent searches from localStorage
+  useEffect(() => {
+    const savedSearches = localStorage.getItem("recentSearches");
+    if (savedSearches) {
+      setRecentSearches(JSON.parse(savedSearches));
+    }
+  }, []);
+
+  // Save recent searches to localStorage
+  const saveSearchToRecent = (query) => {
+    if (!query.trim()) return;
+
+    const updatedSearches = [
+      query.trim(),
+      ...recentSearches.filter((item) => item !== query.trim()),
+    ].slice(0, 5); // Keep only last 5 searches
+
+    setRecentSearches(updatedSearches);
+    localStorage.setItem("recentSearches", JSON.stringify(updatedSearches));
   };
+
+  // Fetch cart count from API
+  const fetchCartCount = useCallback(async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      // Check localStorage for cached count
+      const cachedCount = localStorage.getItem("cartCount");
+      if (cachedCount) {
+        setCartCount(parseInt(cachedCount));
+      }
+      return;
+    }
+
+    try {
+      const response = await fetch(`${BASE_API}/carts/me/`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const cartData = await response.json();
+        const count = cartData.items?.length || 0;
+        setCartCount(count);
+        localStorage.setItem("cartCount", count.toString());
+      }
+    } catch (error) {
+      console.error("Error fetching cart:", error);
+      // Fallback to localStorage
+      const cachedCount = localStorage.getItem("cartCount");
+      if (cachedCount) {
+        setCartCount(parseInt(cachedCount));
+      }
+    }
+  }, []);
+
+  // Fetch wishlist count from API
+  const fetchWishlistCount = useCallback(async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      // Check localStorage for cached count
+      const cachedCount = localStorage.getItem("wishlistCount");
+      if (cachedCount) {
+        setWishlistCount(parseInt(cachedCount));
+      }
+      return;
+    }
+
+    try {
+      const response = await fetch(`${BASE_API}/wishlists/me/`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      console.log("wishlist: ");
+
+      if (response.ok) {
+        const wishlistData = await response.json();
+        console.log(wishlistData);
+        const count = wishlistData.item_count || 0;
+        setWishlistCount(count);
+        localStorage.setItem("wishlistCount", count.toString());
+      }
+    } catch (error) {
+      console.error("Error fetching wishlist:", error);
+      // Fallback to localStorage
+      const cachedCount = localStorage.getItem("wishlistCount");
+      if (cachedCount) {
+        setWishlistCount(parseInt(cachedCount));
+      }
+    }
+  }, []);
+
+  // Search products
+  const searchProducts = useCallback(async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await fetch(
+        `${BASE_API}/products/?search=${encodeURIComponent(query)}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data.results || data);
+      }
+    } catch (error) {
+      console.error("Error searching products:", error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  // Handle search input change
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+
+    if (value.trim().length > 1) {
+      searchProducts(value);
+      setShowSearchDropdown(true);
+    } else {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+    }
+  };
+
+  // Handle search submit
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      saveSearchToRecent(searchQuery);
+      setIsSearchOpen(false);
+      setShowSearchDropdown(false);
+      // Navigate to search results page or show results
+      window.location.href = `/search?q=${encodeURIComponent(searchQuery)}`;
+    }
+  };
+
+  // Handle click outside search results
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        searchResultsRef.current &&
+        !searchResultsRef.current.contains(event.target) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target)
+      ) {
+        setShowSearchDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Fetch cart and wishlist counts on mount and when user changes
+  useEffect(() => {
+    fetchCartCount();
+    fetchWishlistCount();
+
+    // Set up interval to refresh counts
+    const interval = setInterval(() => {
+      fetchCartCount();
+      fetchWishlistCount();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [fetchCartCount, fetchWishlistCount, user, storeOwner]);
 
   // Check if user or store owner is logged in
   useEffect(() => {
     const checkAuth = async () => {
       try {
         const token = localStorage.getItem("accessToken");
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
         const userResponse = await fetch(`${BASE_API}/users/me/`, {
           method: "GET",
           headers: {
@@ -58,13 +251,9 @@ export default function Header() {
           },
         });
 
-        console.log("user response: ");
-        console.log(userResponse);
-
         // Check for user session
         if (userResponse.ok) {
           const userResult = await userResponse.json();
-          console.log(userResult);
           if (userResult.status === "active") {
             setUser(userResult);
             setLoading(false);
@@ -72,7 +261,7 @@ export default function Header() {
           }
         }
 
-        // Replace with your actual API endpoint
+        // Check for store owner session
         const storeResponse = await fetch(`${BASE_API}/store-owners/me/`, {
           method: "GET",
           headers: {
@@ -81,11 +270,8 @@ export default function Header() {
           },
         });
 
-        // Check for store owner session
         if (storeResponse.ok) {
-          console.log("store reulst: ");
           const storeResult = await storeResponse.json();
-          console.log(storeResult);
           if (storeResult || storeResult.status === "active") {
             setStoreOwner(storeResult);
           }
@@ -100,8 +286,36 @@ export default function Header() {
     const token = localStorage.getItem("accessToken");
     if (token) {
       checkAuth();
+    } else {
+      setLoading(false);
     }
   }, []);
+
+  // Listen for cart/wishlist updates from other components
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === "cartCount") {
+        setCartCount(parseInt(e.newValue || "0"));
+      } else if (e.key === "wishlistCount") {
+        setWishlistCount(parseInt(e.newValue || "0"));
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+
+    // Custom event listener for cart/wishlist updates
+    const handleCartUpdate = () => fetchCartCount();
+    const handleWishlistUpdate = () => fetchWishlistCount();
+
+    window.addEventListener("cartUpdated", handleCartUpdate);
+    window.addEventListener("wishlistUpdated", handleWishlistUpdate);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("cartUpdated", handleCartUpdate);
+      window.removeEventListener("wishlistUpdated", handleWishlistUpdate);
+    };
+  }, [fetchCartCount, fetchWishlistCount]);
 
   const handleSignupChoice = (userType) => {
     setIsSignupModalOpen(false);
@@ -111,19 +325,25 @@ export default function Header() {
     try {
       localStorage.removeItem("accessToken");
       localStorage.removeItem("user");
+      localStorage.removeItem("cartCount");
+      localStorage.removeItem("wishlistCount");
 
-      // if (response && response.ok) {
       setUser(null);
       setStoreOwner(null);
+      setCartCount(0);
+      setWishlistCount(0);
       setIsProfileDropdownOpen(false);
       setIsLogoutModalOpen(false);
+
+      // Dispatch events to notify other components
+      window.dispatchEvent(new Event("cartUpdated"));
+      window.dispatchEvent(new Event("wishlistUpdated"));
+
       showToast("با موفقیت از حساب کاربری خارج شدید", "success");
 
-      // Redirect to home page after a short delay
       setTimeout(() => {
         window.location.href = "/";
       }, 1000);
-      // }
     } catch (error) {
       console.error("Error logging out:", error);
       showToast("خطا در خروج از حساب کاربری", "error");
@@ -176,14 +396,49 @@ export default function Header() {
   };
 
   const handleProductsPage = (provider) => {
-    // alert();
     showToast(`ورود به ${provider} در حال توسعه است...`, "error");
-
-    // Or use console.log for debugging
     console.log(`Toast for ${provider}: در حال توسعه است...`);
   };
+
+  const showToast = (message, type = "success") => {
+    // Using react-hot-toast
+    if (type === "success") {
+      toast.success(message, {
+        duration: 3000,
+        position: "top-center",
+        style: {
+          background: "#10B981",
+          color: "white",
+          borderRadius: "12px",
+        },
+      });
+    } else {
+      toast.error(message, {
+        duration: 3000,
+        position: "top-center",
+        style: {
+          background: "#EF4444",
+          color: "white",
+          borderRadius: "12px",
+        },
+      });
+    }
+  };
+
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    localStorage.removeItem("recentSearches");
+  };
+
+  const removeRecentSearch = (index) => {
+    const updatedSearches = recentSearches.filter((_, i) => i !== index);
+    setRecentSearches(updatedSearches);
+    localStorage.setItem("recentSearches", JSON.stringify(updatedSearches));
+  };
+
   return (
     <header className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky top-0 z-50 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <Toaster />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           {/* Logo Section */}
@@ -219,7 +474,6 @@ export default function Header() {
                   <button
                     type="button"
                     onClick={() => handleProductsPage(item.title + "")}
-                    // href={item.href}
                     className="flex items-center space-x-1 px-4 py-2 text-gray-700 hover:text-gray-900 transition-all duration-200 rounded-lg hover:bg-gray-50 group-hover:bg-gray-50/80"
                   >
                     <span className="font-medium text-sm">{item.title}</span>
@@ -244,10 +498,7 @@ export default function Header() {
                               type="button"
                               key={item.id + Math.random(0, 2)}
                               onClick={() => handleProductsPage(sub.title + "")}
-                              // key={sub.id}
-                              // href={sub.href}
                               className="block px-3 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200"
-                              // onClick={() => setActiveDropdown(null)}
                             >
                               {sub.title}
                             </button>
@@ -263,14 +514,214 @@ export default function Header() {
 
           {/* Search and Actions */}
           <div className="flex items-center space-x-4">
-            {/* Enhanced Search Bar */}
-            <div className="hidden lg:flex items-center bg-gray-50/80 backdrop-blur-sm rounded-2xl px-4 py-3 border border-gray-200 hover:border-gray-300 transition-all duration-300 group focus-within:bg-white focus-within:border-purple-500 focus-within:shadow-lg">
-              <FiSearch className="text-gray-400 ml-3 group-focus-within:text-purple-500 transition-colors duration-200" />
-              <input
-                type="text"
-                placeholder="جستجو در محصولات..."
-                className="bg-transparent border-none outline-none text-sm w-64 placeholder-gray-400"
-              />
+            {/* Enhanced Search Bar with Results Dropdown */}
+            <div className="hidden lg:block relative">
+              <div className="relative">
+                <form
+                  onSubmit={handleSearchSubmit}
+                  className="flex items-center bg-gray-50/80 backdrop-blur-sm rounded-2xl px-4 py-3 border border-gray-200 hover:border-gray-300 transition-all duration-300 group focus-within:bg-white focus-within:border-purple-500 focus-within:shadow-lg"
+                >
+                  <button
+                    type="submit"
+                    className="text-gray-400 ml-3 group-focus-within:text-purple-500 transition-colors duration-200"
+                  >
+                    <FiSearch className="w-5 h-5" />
+                  </button>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    onFocus={() => setShowSearchDropdown(true)}
+                    placeholder="جستجو در محصولات..."
+                    className="bg-transparent border-none outline-none text-sm w-64 placeholder-gray-400"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setSearchResults([]);
+                      }}
+                      className="text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                    >
+                      <FiX className="w-4 h-4" />
+                    </button>
+                  )}
+                </form>
+
+                {/* Search Results Dropdown */}
+                {showSearchDropdown && (
+                  <div
+                    ref={searchResultsRef}
+                    className="absolute top-full right-0 mt-2 w-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-gray-200 max-h-96 overflow-y-auto z-50"
+                  >
+                    {/* Recent Searches */}
+                    {searchQuery.length <= 1 && recentSearches.length > 0 && (
+                      <div className="p-4 border-b border-gray-100">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                            <FiClock className="w-4 h-4" />
+                            جستجوهای اخیر
+                          </h4>
+                          <button
+                            onClick={clearRecentSearches}
+                            className="text-xs text-gray-500 hover:text-gray-700"
+                          >
+                            پاک کردن همه
+                          </button>
+                        </div>
+                        <div className="space-y-2">
+                          {recentSearches.map((term, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between group"
+                            >
+                              <button
+                                onClick={() => {
+                                  setSearchQuery(term);
+                                  saveSearchToRecent(term);
+                                  searchProducts(term);
+                                }}
+                                className="flex-1 text-right py-2 px-3 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors duration-200 text-sm"
+                              >
+                                {term}
+                              </button>
+                              <button
+                                onClick={() => removeRecentSearch(index)}
+                                className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                              >
+                                <FiX className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Search Results */}
+                    {searchQuery.length > 1 && (
+                      <div className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                            <FiSearch className="w-4 h-4" />
+                            نتایج جستجو برای {searchQuery}
+                          </h4>
+                          {searchResults.length > 0 && (
+                            <span className="text-xs text-gray-500">
+                              {searchResults.length} نتیجه
+                            </span>
+                          )}
+                        </div>
+
+                        {isSearching ? (
+                          <div className="py-8 text-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                            <p className="text-gray-500 mt-2 text-sm">
+                              در حال جستجو...
+                            </p>
+                          </div>
+                        ) : searchResults.length > 0 ? (
+                          <div className="space-y-3">
+                            {searchResults.slice(0, 5).map((product) => (
+                              <Link
+                                key={product.id}
+                                href={`/product/${product.id}`}
+                                onClick={() => {
+                                  setShowSearchDropdown(false);
+                                  setSearchQuery("");
+                                  saveSearchToRecent(searchQuery);
+                                }}
+                                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200 group"
+                              >
+                                <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                                  {product.primary_image ? (
+                                    <img
+                                      src={product.primary_image}
+                                      alt={product.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                      <FiPackage className="w-6 h-6" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex-1 text-right">
+                                  <h5 className="text-sm font-medium text-gray-900 group-hover:text-purple-600 line-clamp-1">
+                                    {product.title}
+                                  </h5>
+                                  <div className="flex items-center justify-between mt-1">
+                                    <span className="text-xs text-gray-500">
+                                      {product.category}
+                                    </span>
+                                    <span className="text-sm font-semibold text-gray-900">
+                                      {product.price.toLocaleString()} تومان
+                                    </span>
+                                  </div>
+                                </div>
+                              </Link>
+                            ))}
+                            {searchResults.length > 5 && (
+                              <Link
+                                href={`/search?q=${encodeURIComponent(
+                                  searchQuery
+                                )}`}
+                                onClick={() => {
+                                  setShowSearchDropdown(false);
+                                  saveSearchToRecent(searchQuery);
+                                }}
+                                className="block text-center py-3 text-sm text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors duration-200 font-medium"
+                              >
+                                مشاهده همه نتایج ({searchResults.length})
+                              </Link>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="py-8 text-center">
+                            <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gray-100 flex items-center justify-center">
+                              <Search className="w-8 h-8 text-gray-400" />
+                            </div>
+                            <p className="text-gray-700 font-medium">
+                              محصولی یافت نشد
+                            </p>
+                            <p className="text-gray-500 text-sm mt-1">
+                              {searchQuery} را با کلمات دیگری جستجو کنید
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Popular Searches */}
+                    {searchQuery.length <= 1 && (
+                      <div className="p-4 border-t border-gray-100">
+                        <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2 mb-3">
+                          <FiTrendingUp className="w-4 h-4" />
+                          پرجستجوترین‌ها
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {["تیشرت", "شلوار جین", "کفش", "مانتو"].map(
+                            (term) => (
+                              <button
+                                key={term}
+                                onClick={() => {
+                                  setSearchQuery(term);
+                                  saveSearchToRecent(term);
+                                  searchProducts(term);
+                                }}
+                                className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors duration-200"
+                              >
+                                {term}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Mobile Search Button */}
@@ -372,35 +823,39 @@ export default function Header() {
 
               {/* Cart with Enhanced Design */}
               <div className="relative group">
-                <button className="flex items-center justify-center w-12 h-12 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all duration-200 relative">
-                  <FiShoppingCart className="w-5 h-5" />
-                  {cartCount > 0 && (
-                    <span className="absolute -top-1 -left-1 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-lg transform group-hover:scale-110 transition-transform duration-200">
-                      {cartCount}
-                    </span>
-                  )}
-                </button>
+                <Link href="/cart">
+                  <button className="flex items-center justify-center w-12 h-12 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all duration-200 relative">
+                    <FiShoppingCart className="w-5 h-5" />
+                    {cartCount > 0 && (
+                      <span className="absolute top-1 right-0 bg-gradient-to-r from-purple-600 to-pink-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-lg transform group-hover:scale-110 transition-transform duration-200">
+                        {cartCount > 99 ? "99+" : cartCount}
+                      </span>
+                    )}
+                  </button>
+                </Link>
 
                 {/* Cart Tooltip */}
                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap">
-                  سبد خرید
+                  سبد خرید ({cartCount} محصول)
                 </div>
               </div>
 
-              {/* Cart with Enhanced Design */}
+              {/* Wishlist with Enhanced Design */}
               <div className="relative group">
-                <button className="flex items-center justify-center w-12 h-12 text-gray-600 hover:text-red-600 hover:bg-purple-50 rounded-xl transition-all duration-200 relative">
-                  <FiHeart className="w-5 h-5" />
-                  {cartCount > 0 && (
-                    <span className="absolute -top-1 -left-1 bg-pink-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-lg transform group-hover:scale-110 transition-transform duration-200">
-                      {cartCount-2}
-                    </span>
-                  )}
-                </button>
+                <Link href="/user/dashboard/wishlist">
+                  <button className="flex items-center justify-center w-12 h-12 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 relative">
+                    <FiHeart className="w-5 h-5" />
+                    {wishlistCount > 0 && (
+                      <span className="absolute top-1 right-0 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full shadow-lg transform group-hover:scale-110 transition-transform duration-200">
+                        {wishlistCount > 99 ? "99+" : wishlistCount}
+                      </span>
+                    )}
+                  </button>
+                </Link>
 
-                {/* Cart Tooltip */}
+                {/* Wishlist Tooltip */}
                 <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-1 bg-gray-900 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap">
-                  علاقه‌مندی‌ها
+                  علاقه‌مندی‌ها ({wishlistCount} محصول)
                 </div>
               </div>
 
@@ -423,35 +878,6 @@ export default function Header() {
         {isMenuOpen && (
           <div className="lg:hidden border-t border-gray-200 backdrop-blur-md h-screen">
             <div className="py-6 space-y-6">
-              {/* Mobile Navigation */}
-              {/* <nav className="space-y-4">
-                {navigationData.mainMenu.map((item) => (
-                  <div key={item.id} className="space-y-2">
-                    <Link
-                      href={item.href}
-                      className="block py-3 px-4 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all duration-200 font-medium"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      {item.title}
-                    </Link>
-                   
-                    
-                    <div className="pr-8 space-y-1">
-                      {item.subcategories?.map((sub) => (
-                        <Link
-                          key={sub.id}
-                          href={sub.href}
-                          className="block py-2 px-4 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200"
-                          onClick={() => setIsMenuOpen(false)}
-                        >
-                          {sub.title}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </nav> */}
-
               {/* Mobile Auth Buttons */}
               <div className="flex flex-col space-y-3 pt-4 border-t border-gray-200">
                 {user || storeOwner ? (
@@ -524,29 +950,42 @@ export default function Header() {
                       <FiUser className="w-5 h-5" />
                       <span>ورود به حساب کاربری</span>
                     </button>
-                    {/* <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        setIsSignupModalOpen(true);
-                      }}
-                      className="bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white py-3 px-4 rounded-xl font-medium text-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300"
-                    >
-                      ایجاد حساب جدید
-                    </button> */}
                   </>
                 )}
               </div>
 
               {/* Mobile Quick Actions */}
               <div className="flex flex-col gap-y-2 space-x-4 pt-4 border-t border-gray-200">
-                <button className="flex-1 flex items-center justify-center space-x-2 py-3 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all duration-200">
+                <Link
+                  href="/user/dashboard/wishlist"
+                  className="flex-1 flex items-center justify-center space-x-2 py-3 text-gray-600 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all duration-200"
+                  onClick={() => setIsMenuOpen(false)}
+                >
                   <FiHeart className="w-4 h-4" />
-                  <span className="text-sm font-medium">علاقه‌مندی‌ها</span>
-                </button>
-                <button className="flex-1 flex items-center justify-center space-x-2 py-3 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all duration-200">
+                  <span className="text-sm font-medium">
+                    علاقه‌مندی‌ها
+                    {wishlistCount > 0 && (
+                      <span className="mr-2 bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full">
+                        {wishlistCount}
+                      </span>
+                    )}
+                  </span>
+                </Link>
+                <Link
+                  href="/cart"
+                  className="flex-1 flex items-center justify-center space-x-2 py-3 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all duration-200"
+                  onClick={() => setIsMenuOpen(false)}
+                >
                   <FiShoppingCart className="w-4 h-4" />
-                  <span className="text-sm font-medium">سبد خرید</span>
-                </button>
+                  <span className="text-sm font-medium">
+                    سبد خرید
+                    {cartCount > 0 && (
+                      <span className="mr-2 bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded-full">
+                        {cartCount}
+                      </span>
+                    )}
+                  </span>
+                </Link>
               </div>
             </div>
           </div>
@@ -555,7 +994,7 @@ export default function Header() {
         {/* Mobile Search Overlay */}
         {isSearchOpen && (
           <div className="lg:hidden fixed inset-0 bg-white/95 backdrop-blur-md z-50">
-            <div className="p-4">
+            <div className="p-4 h-full flex flex-col">
               <div className="flex items-center space-x-4 mb-6">
                 <button
                   onClick={() => setIsSearchOpen(false)}
@@ -566,35 +1005,158 @@ export default function Header() {
                 <h3 className="text-lg font-semibold text-gray-900">جستجو</h3>
               </div>
 
-              <div className="flex items-center bg-gray-50 rounded-2xl px-4 py-4 border border-gray-200">
-                <FiSearch className="text-gray-400 ml-3" />
-                <input
-                  type="text"
-                  placeholder="چه محصولی دنبالش هستید؟"
-                  className="flex-1 bg-transparent border-none outline-none text-lg placeholder-gray-400"
-                  autoFocus
-                />
-              </div>
-
-              {/* Recent Searches */}
-              <div className="mt-6">
-                <h4 className="text-sm font-medium text-gray-500 mb-3">
-                  جستجوهای اخیر
-                </h4>
-                <div className="space-y-2">
-                  {["کت چرم", "مانتو تابستانه", "کفش اسپرت"].map(
-                    (term, index) => (
-                      <button
-                        key={index}
-                        className="block w-full text-right py-2 px-3 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors duration-200"
-                        onClick={() => setIsSearchOpen(false)}
-                      >
-                        {term}
-                      </button>
-                    )
+              <form onSubmit={handleSearchSubmit} className="mb-6">
+                <div className="flex items-center bg-gray-50 rounded-2xl px-4 py-4 border border-gray-200">
+                  <button type="submit">
+                    <FiSearch className="text-gray-400 ml-3" />
+                  </button>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="چه محصولی دنبالش هستید؟"
+                    className="flex-1 bg-transparent border-none outline-none text-lg placeholder-gray-400"
+                    autoFocus
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <FiX className="w-5 h-5" />
+                    </button>
                   )}
                 </div>
-              </div>
+              </form>
+
+              {/* Search Results */}
+              {isSearching ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">در حال جستجو...</p>
+                  </div>
+                </div>
+              ) : searchResults.length > 0 ? (
+                <div className="flex-1 overflow-y-auto">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">
+                    نتایج جستجو
+                  </h4>
+                  <div className="space-y-3">
+                    {searchResults.map((product) => (
+                      <Link
+                        key={product.id}
+                        href={`/product/${product.id}`}
+                        onClick={() => {
+                          setIsSearchOpen(false);
+                          setSearchQuery("");
+                          saveSearchToRecent(searchQuery);
+                        }}
+                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200 border border-gray-100"
+                      >
+                        <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                          {product.primary_image ? (
+                            <img
+                              src={product.primary_image}
+                              alt={product.title}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                              <FiPackage className="w-8 h-8" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 text-right">
+                          <h5 className="text-sm font-medium text-gray-900">
+                            {product.title}
+                          </h5>
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                            {product.description}
+                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="text-xs text-gray-500">
+                              {product.category}
+                            </span>
+                            <span className="text-sm font-semibold text-gray-900">
+                              {product.price.toLocaleString()} تومان
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1">
+                  {/* Recent Searches */}
+                  {recentSearches.length > 0 && !searchQuery && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-gray-700">
+                          جستجوهای اخیر
+                        </h4>
+                        <button
+                          onClick={clearRecentSearches}
+                          className="text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          پاک کردن همه
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {recentSearches.map((term, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between"
+                          >
+                            <button
+                              onClick={() => {
+                                setSearchQuery(term);
+                                saveSearchToRecent(term);
+                                searchProducts(term);
+                              }}
+                              className="flex-1 text-right py-3 px-4 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors duration-200"
+                            >
+                              {term}
+                            </button>
+                            <button
+                              onClick={() => removeRecentSearch(index)}
+                              className="p-2 text-gray-400 hover:text-red-500"
+                            >
+                              <FiX className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Popular Searches */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">
+                      پرجستجوترین‌ها
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {["تیشرت", "شلوار جین", "کفش", "مانتو", "لباس ورزشی"].map(
+                        (term) => (
+                          <button
+                            key={term}
+                            onClick={() => {
+                              setSearchQuery(term);
+                              saveSearchToRecent(term);
+                              searchProducts(term);
+                            }}
+                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors duration-200 text-sm"
+                          >
+                            {term}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -728,46 +1290,6 @@ export default function Header() {
                   <span>بله، خارج می‌شوم</span>
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Toast Notification */}
-        {toast.show && (
-          <div
-            className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-lg transition-all duration-300 ${
-              toast.type === "success"
-                ? "bg-green-500 text-white"
-                : "bg-red-500 text-white"
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              {toast.type === "success" ? (
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              ) : (
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              )}
-              <span className="font-medium">{toast.message}</span>
             </div>
           </div>
         )}

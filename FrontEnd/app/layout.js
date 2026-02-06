@@ -1,6 +1,7 @@
 // app/layout.js
 import { Vazirmatn } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "react-hot-toast";
 
 const vazirmatn = Vazirmatn({
   subsets: ["arabic", "latin"],
@@ -16,7 +17,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="fa" dir="rtl" className={vazirmatn.variable}>
-      <body className="font-vazirmatn">{children}</body>
+      <body className="font-vazirmatn">
+        {children}
+        <Toaster position="top-center" />
+      </body>
     </html>
   );
 }

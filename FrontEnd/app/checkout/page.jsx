@@ -579,7 +579,7 @@ export default function CheckoutPage() {
 
       // Redirect to order confirmation page
       setTimeout(() => {
-        router.push(`/order-confirmation/${orderResult.data.id}`);
+        router.push(`/order-confirmation/${orderResult.data[0].id}`);
       }, 1500);
     } catch (error) {
       console.error("Order submission catch error:", error);

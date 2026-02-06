@@ -23,7 +23,7 @@ import {
   Building,
   Globe,
   Users,
-  ThumbsUp
+  ThumbsUp,
 } from "lucide-react";
 
 export default function Contact() {
@@ -43,7 +43,7 @@ export default function Contact() {
     setIsSubmitting(true);
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
-    
+
     console.log("Form submitted:", formData);
     setIsSubmitting(false);
     setIsSubmitted(true);
@@ -72,7 +72,7 @@ export default function Contact() {
       textColor: "text-white",
       buttonText: "تماس فوری",
       status: "آنلاین",
-      statusColor: "bg-green-400"
+      statusColor: "bg-green-400",
     },
     {
       icon: MessageCircle,
@@ -84,7 +84,7 @@ export default function Contact() {
       textColor: "text-white",
       buttonText: "شروع چت",
       status: "آنلاین",
-      statusColor: "bg-green-400"
+      statusColor: "bg-green-400",
     },
     {
       icon: Mail,
@@ -96,7 +96,7 @@ export default function Contact() {
       textColor: "text-white",
       buttonText: "ارسال ایمیل",
       status: "فعال",
-      statusColor: "bg-blue-400"
+      statusColor: "bg-blue-400",
     },
     {
       icon: MapPin,
@@ -108,15 +108,35 @@ export default function Contact() {
       textColor: "text-white",
       buttonText: "مشاهده نقشه",
       status: "باز",
-      statusColor: "bg-green-400"
+      statusColor: "bg-green-400",
     },
   ];
 
   const features = [
-    { icon: Zap, text: "پاسخگویی سریع", color: "text-yellow-500", bg: "bg-yellow-50" },
-    { icon: Shield, text: "پشتیبانی امن", color: "text-blue-500", bg: "bg-blue-50" },
-    { icon: Heart, text: "رضایت مشتری", color: "text-pink-500", bg: "bg-pink-50" },
-    { icon: Star, text: "کیفیت بالا", color: "text-amber-500", bg: "bg-amber-50" },
+    {
+      icon: Zap,
+      text: "پاسخگویی سریع",
+      color: "text-yellow-500",
+      bg: "bg-yellow-50",
+    },
+    {
+      icon: Shield,
+      text: "پشتیبانی امن",
+      color: "text-blue-500",
+      bg: "bg-blue-50",
+    },
+    {
+      icon: Heart,
+      text: "رضایت مشتری",
+      color: "text-pink-500",
+      bg: "bg-pink-50",
+    },
+    {
+      icon: Star,
+      text: "کیفیت بالا",
+      color: "text-amber-500",
+      bg: "bg-amber-50",
+    },
   ];
 
   const stats = [
@@ -138,7 +158,8 @@ export default function Contact() {
               پیام شما ارسال شد!
             </h2>
             <p className="text-gray-600 text-lg mb-8 leading-relaxed">
-              با تشکر از ارتباط شما. تیم پشتیبانی آوینا در اسرع وقت با شما تماس خواهد گرفت.
+              با تشکر از ارتباط شما. تیم پشتیبانی آوینا در اسرع وقت با شما تماس
+              خواهد گرفت.
             </p>
             <div className="flex space-x-3 space-x-reverse">
               <button
@@ -159,47 +180,25 @@ export default function Contact() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
-            <button className="flex items-center space-x-2 space-x-reverse text-gray-600 hover:text-gray-900 transition-all duration-300 hover:scale-105">
-              <ArrowLeft className="h-5 w-5" />
-              <span className="font-medium">بازگشت</span>
-            </button>
-            <div className="flex items-center space-x-3 space-x-reverse">
-              <div className="relative">
-                <HeadphonesIcon className="h-10 w-10 text-blue-600" />
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white"></div>
-              </div>
-              <div>
-                <span className="text-2xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  پشتیبانی آوینا
-                </span>
-                <div className="flex items-center space-x-2 space-x-reverse text-green-600 text-sm">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span>هم اکنون آنلاین</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Hero Section */}
         <div className="text-center mb-16">
+          <h1 className="text-5xl md:text-6xl font-black text-gray-900 mb-6 leading-tight">
+            ما اینجا{" "}
+            <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              هستیم
+            </span>{" "}
+            تا کمک کنیم
+          </h1>
+
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+            تیم پشتیبانی آوینا همواره آماده پاسخگویی به سوالات و حل مشکلات
+            شماست. بهترین تجربه پشتیبانی را با ما تجربه کنید.
+          </p>
           <div className="inline-flex items-center space-x-2 space-x-reverse bg-blue-50 rounded-2xl px-6 py-3 border border-blue-200 mb-6">
             <Sparkles className="h-5 w-5 text-blue-600" />
             <span className="text-blue-600 font-bold">پشتیبانی ۲۴ ساعته</span>
           </div>
-          <h1 className="text-5xl md:text-6xl font-black text-gray-900 mb-6 leading-tight">
-            ما اینجا <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">هستیم</span> تا کمک کنیم
-          </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            تیم پشتیبانی آوینا همواره آماده پاسخگویی به سوالات و حل مشکلات شماست. 
-            بهترین تجربه پشتیبانی را با ما تجربه کنید.
-          </p>
         </div>
 
         {/* Stats Section */}
@@ -207,11 +206,16 @@ export default function Contact() {
           {stats.map((stat, index) => {
             const IconComponent = stat.icon;
             return (
-              <div key={index} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200 text-center">
+              <div
+                key={index}
+                className="bg-white rounded-2xl p-6 shadow-lg border border-gray-200 text-center"
+              >
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-3">
                   <IconComponent className="h-6 w-6 text-white" />
                 </div>
-                <div className="text-2xl font-black text-gray-900 mb-1">{stat.number}</div>
+                <div className="text-2xl font-black text-gray-900 mb-1">
+                  {stat.number}
+                </div>
                 <div className="text-gray-600 text-sm">{stat.label}</div>
               </div>
             );
@@ -225,11 +229,16 @@ export default function Contact() {
               {features.map((feature, index) => {
                 const IconComponent = feature.icon;
                 return (
-                  <div key={index} className="flex items-center space-x-3 space-x-reverse">
+                  <div
+                    key={index}
+                    className="flex items-center space-x-3 space-x-reverse"
+                  >
                     <div className={`p-2 rounded-lg ${feature.bg}`}>
                       <IconComponent className={`h-5 w-5 ${feature.color}`} />
                     </div>
-                    <span className="text-gray-700 font-medium">{feature.text}</span>
+                    <span className="text-gray-700 font-medium">
+                      {feature.text}
+                    </span>
                   </div>
                 );
               })}
@@ -243,7 +252,7 @@ export default function Contact() {
             {contactMethods.map((method, index) => {
               const IconComponent = method.icon;
               const isActive = activeMethod === index;
-              
+
               return (
                 <div
                   key={index}
@@ -255,27 +264,31 @@ export default function Contact() {
                   }`}
                 >
                   {/* Status Dot */}
-                  <div className={`absolute top-4 left-4 w-3 h-3 ${method.statusColor} rounded-full border-2 border-white`}></div>
-                  
+                  <div
+                    className={`absolute top-4 left-4 w-3 h-3 ${method.statusColor} rounded-full border-2 border-white`}
+                  ></div>
+
                   <div className="flex items-start space-x-4 space-x-reverse">
-                    <div className={`p-4 rounded-2xl ${method.bgColor} group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
+                    <div
+                      className={`p-4 rounded-2xl ${method.bgColor} group-hover:scale-110 transition-transform duration-300 shadow-lg`}
+                    >
                       <IconComponent className="h-6 w-6 text-white" />
                     </div>
-                    
+
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="text-lg font-black text-gray-900">
                           {method.title}
                         </h3>
                       </div>
-                      
+
                       <p className="text-gray-900 font-semibold text-lg mb-2">
                         {method.details}
                       </p>
                       <p className="text-gray-600 text-sm mb-4">
                         {method.description}
                       </p>
-                      
+
                       <button
                         className={`w-full ${method.bgColor} text-white py-3 rounded-xl font-bold hover:shadow-lg transition-all duration-300 transform hover:scale-105`}
                       >
@@ -325,7 +338,7 @@ export default function Contact() {
                     <p className="text-gray-600">پاسخ در کمتر از ۲ ساعت</p>
                   </div>
                 </div>
-                
+
                 {/* Form Actions */}
                 <div className="flex space-x-2 space-x-reverse">
                   <button className="p-3 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-300 border border-gray-300">
@@ -401,10 +414,16 @@ export default function Contact() {
                       required
                     />
                     <div className="absolute bottom-4 left-4 flex space-x-2 space-x-reverse">
-                      <button type="button" className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all duration-300">
+                      <button
+                        type="button"
+                        className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all duration-300"
+                      >
                         <Smile className="h-4 w-4 text-gray-600" />
                       </button>
-                      <button type="button" className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all duration-300">
+                      <button
+                        type="button"
+                        className="p-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-all duration-300"
+                      >
                         <Paperclip className="h-4 w-4 text-gray-600" />
                       </button>
                     </div>
@@ -450,9 +469,7 @@ export default function Contact() {
         {/* FAQ Section */}
         <div className="mt-12 bg-white rounded-3xl shadow-2xl border border-gray-200 p-8">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="text-2xl font-black text-gray-900">
-              سوالات متداول
-            </h3>
+            <h3 className="text-2xl font-black text-gray-900">سوالات متداول</h3>
             <button className="text-blue-600 hover:text-blue-700 transition-colors font-bold">
               مشاهده همه
             </button>

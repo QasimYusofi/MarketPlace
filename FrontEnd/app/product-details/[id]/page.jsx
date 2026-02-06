@@ -1,4 +1,3 @@
-// api/product-details/[id]/page.jsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -36,7 +35,6 @@ import { toast, Toaster } from "react-hot-toast";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
 
-// Color mapping for Persian color names
 const colorMap = {
   قرمز: "#FF0000",
   آبی: "#0000FF",
@@ -63,7 +61,7 @@ const colorMap = {
 const ProductDetailPage = () => {
   const router = useRouter();
   const params = useParams();
-  const productId = params.id; // Only one parameter: product ID
+  const productId = params.id;
 
   // States
   const [product, setProduct] = useState(null);
@@ -89,7 +87,6 @@ const ProductDetailPage = () => {
   const [hoverRating, setHoverRating] = useState(0);
   const [user, setUser] = useState(null);
 
-  // Get auth token
   const getAuthToken = () => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("accessToken");
@@ -97,14 +94,12 @@ const ProductDetailPage = () => {
     return null;
   };
 
-  // Get user data from API using token
   const fetchUserData = async () => {
     const token = getAuthToken();
     if (!token) {
       setUser(null);
       return;
     }
-
     try {
       const response = await fetch(`${API_BASE_URL}/users/me/`, {
         headers: {
@@ -117,7 +112,6 @@ const ProductDetailPage = () => {
         setUser(userData);
       } else {
         setUser(null);
-        // Token might be expired, clear it
         localStorage.removeItem("accessToken");
       }
     } catch (error) {
@@ -126,23 +120,19 @@ const ProductDetailPage = () => {
     }
   };
 
-  // Format currency
   const formatCurrency = (price) => {
     if (!price && price !== 0) return "قیمت نامعلوم";
     return new Intl.NumberFormat("fa-IR").format(price) + " تومان";
   };
 
-  // Calculate discount percentage
   const calculateDiscount = (price, comparePrice) => {
     if (!comparePrice || comparePrice <= price) return 0;
     return Math.round((1 - price / comparePrice) * 100);
   };
 
-  // Get product image URL
   const getProductImageUrl = (product) => {
     if (!product) return null;
 
-    // Handle images array
     if (
       product.images &&
       Array.isArray(product.images) &&
@@ -154,7 +144,6 @@ const ProductDetailPage = () => {
       if (image.image) return image.image;
     }
 
-    // Handle single image
     if (product.image) {
       if (typeof product.image === "string") return product.image;
       if (product.image.url) return product.image.url;
@@ -163,7 +152,6 @@ const ProductDetailPage = () => {
     return null;
   };
 
-  // Get full image URL
   const getFullImageUrl = (imagePath) => {
     if (!imagePath) return null;
     if (imagePath.startsWith("http")) return imagePath;
@@ -173,7 +161,6 @@ const ProductDetailPage = () => {
     return imagePath;
   };
 
-  // Get HEX color for color name
   const getColorHex = (colorName) => {
     if (!colorName) return "#CCCCCC";
     if (colorName.startsWith("#")) return colorName;
@@ -185,7 +172,6 @@ const ProductDetailPage = () => {
       }
     }
 
-    // Generate consistent color from string
     let hash = 0;
     for (let i = 0; i < colorName.length; i++) {
       hash = colorName.charCodeAt(i) + ((hash << 5) - hash);
@@ -194,15 +180,11 @@ const ProductDetailPage = () => {
     return colors[Math.abs(hash) % colors.length];
   };
 
-  // Fetch product details
   const fetchProductDetails = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log(
-        `Fetching product from: ${API_BASE_URL}/products/${productId}/`
-      );
       const response = await fetch(`${API_BASE_URL}/products/${productId}/`);
 
       if (!response.ok) {
@@ -213,10 +195,8 @@ const ProductDetailPage = () => {
       }
 
       const productData = await response.json();
-      console.log("Product data received:", productData);
       setProduct(productData);
 
-      // Set default selections
       if (productData.colors && productData.colors.length > 0) {
         setSelectedColor(productData.colors[0]);
       }
@@ -224,25 +204,27 @@ const ProductDetailPage = () => {
         setSelectedSize(productData.sizes[0]);
       }
 
-      // Extract store owner ID and fetch store details
       const storeOwnerId =
         productData.store_owner?.id ||
         productData.store_owner_id ||
         productData.owner_store_id;
-      console.log("Store Owner ID:", storeOwnerId);
 
       if (storeOwnerId) {
         fetchStoreOwnerDetails(storeOwnerId);
         fetchRelatedProducts(storeOwnerId);
       }
 
-      // Fetch comments
       fetchComments();
 
       // Increment view count
-      incrementViewCount();
+      try {
+        await fetch(`${API_BASE_URL}/products/${productId}/view/`, {
+          method: "POST",
+        });
+      } catch (error) {
+        console.error("Error incrementing view count:", error);
+      }
 
-      // Check if product is in wishlist
       const token = getAuthToken();
       if (token) {
         checkWishlistStatus(token);
@@ -255,7 +237,6 @@ const ProductDetailPage = () => {
     }
   }, [productId]);
 
-  // Check wishlist status
   const checkWishlistStatus = async (token) => {
     try {
       const response = await fetch(
@@ -269,7 +250,6 @@ const ProductDetailPage = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("Wishlist check response:", data);
         setIsLiked(data.is_in_wishlist || false);
       }
     } catch (error) {
@@ -277,12 +257,8 @@ const ProductDetailPage = () => {
     }
   };
 
-  // Fetch store owner details
   const fetchStoreOwnerDetails = async (storeOwnerId) => {
     try {
-      console.log(
-        `Fetching store owner: ${API_BASE_URL}/store-owners/${storeOwnerId}/`
-      );
       const response = await fetch(
         `${API_BASE_URL}/store-owners/${storeOwnerId}/`,
         {
@@ -294,44 +270,21 @@ const ProductDetailPage = () => {
 
       if (response.ok) {
         const storeData = await response.json();
-        console.log("Store data received:", storeData);
         setOwnerStore(storeData);
-      } else {
-        console.log("Trying alternative endpoint...");
-        // Try /api/store-owners/me/ endpoint (might need authentication)
-        try {
-          const altResponse = await fetch(`${API_BASE_URL}/store-owners/me/`, {
-            headers: {
-              Authorization: `Bearer ${getAuthToken()}`,
-            },
-          });
-          if (altResponse.ok) {
-            const storeData = await altResponse.json();
-            console.log("Store data from /me endpoint:", storeData);
-            setOwnerStore(storeData);
-          }
-        } catch (altError) {
-          console.error("Error fetching store owner from /me:", altError);
-        }
       }
     } catch (error) {
       console.error("Error fetching store owner:", error);
     }
   };
 
-  // Fetch related products
   const fetchRelatedProducts = async (storeOwnerId) => {
     try {
-      console.log(`Fetching related products for store: ${storeOwnerId}`);
       const response = await fetch(
         `${API_BASE_URL}/products/store/${storeOwnerId}/`
       );
 
       if (response.ok) {
         const products = await response.json();
-        console.log("Related products received:", products);
-
-        // Handle different response formats
         let productsArray = [];
         if (Array.isArray(products)) {
           productsArray = products;
@@ -341,7 +294,6 @@ const ProductDetailPage = () => {
           productsArray = products.products;
         }
 
-        // Filter out current product and limit to 4
         const related = productsArray
           .filter((p) => {
             const pid = p.id || p._id;
@@ -350,26 +302,19 @@ const ProductDetailPage = () => {
           .slice(0, 4);
 
         setRelatedProducts(related);
-        console.log("Filtered related products:", related);
-      } else {
-        console.log("No related products found or error:", response.status);
       }
     } catch (error) {
       console.error("Error fetching related products:", error);
     }
   };
 
-  // Fetch comments - FIXED API ENDPOINT
   const fetchComments = async () => {
     try {
-      console.log(`Fetching comments for product: ${productId}`);
-      // Try both endpoints
       let response = await fetch(
         `${API_BASE_URL}/comments/?product=${productId}`
       );
 
       if (!response.ok) {
-        // Try alternative endpoint
         response = await fetch(
           `${API_BASE_URL}/comments/product/${productId}/`
         );
@@ -377,9 +322,6 @@ const ProductDetailPage = () => {
 
       if (response.ok) {
         const commentsData = await response.json();
-        console.log("Comments received:", commentsData);
-
-        // Handle different response formats
         let commentsArray = [];
         if (Array.isArray(commentsData)) {
           commentsArray = commentsData;
@@ -395,10 +337,15 @@ const ProductDetailPage = () => {
           commentsArray = commentsData.comments;
         }
 
+        // Sort comments by date (newest first)
+        commentsArray.sort((a, b) => {
+          const dateA = new Date(a.created_at || a.date);
+          const dateB = new Date(b.created_at || b.date);
+          return dateB - dateA;
+        });
+
         setComments(commentsArray);
-        console.log("Processed comments:", commentsArray);
       } else {
-        console.log("No comments found or error:", response.status);
         setComments([]);
       }
     } catch (error) {
@@ -407,62 +354,33 @@ const ProductDetailPage = () => {
     }
   };
 
-  // Increment view count
-  const incrementViewCount = async () => {
-    try {
-      await fetch(`${API_BASE_URL}/products/${productId}/view/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    } catch (error) {
-      console.error("Error incrementing view count:", error);
-    }
-  };
-
-  // Handle add to cart with toast notification
+  // --- FIXED: Handle add to cart ---
   const handleAddToCart = async () => {
     if (!product) {
       toast.error("محصول بارگذاری نشده است");
       return;
     }
 
-    // Check authentication
     const token = getAuthToken();
     if (!token) {
       setShowLoginModal(true);
-      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید", {
-        duration: 4000,
-        position: "bottom-left",
-      });
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
       return;
     }
 
-    // Validate selections
     if (product.colors && product.colors.length > 0 && !selectedColor) {
-      toast.error("لطفا رنگ محصول را انتخاب کنید", {
-        duration: 3000,
-        position: "bottom-left",
-      });
+      toast.error("لطفا رنگ محصول را انتخاب کنید");
       return;
     }
 
     if (product.sizes && product.sizes.length > 0 && !selectedSize) {
-      toast.error("لطفا سایز محصول را انتخاب کنید", {
-        duration: 3000,
-        position: "bottom-left",
-      });
+      toast.error("لطفا سایز محصول را انتخاب کنید");
       return;
     }
 
     if (product.stock < quantity) {
       toast.error(
-        `تعداد درخواستی بیشتر از موجودی است (موجودی: ${product.stock})`,
-        {
-          duration: 4000,
-          position: "bottom-left",
-        }
+        `تعداد درخواستی بیشتر از موجودی است (موجودی: ${product.stock})`
       );
       return;
     }
@@ -480,11 +398,8 @@ const ProductDetailPage = () => {
           product.owner_store_id,
       };
 
-      // Add color and size if available
       if (selectedColor) cartItem.color = selectedColor;
       if (selectedSize) cartItem.size = selectedSize;
-
-      console.log("Adding to cart:", cartItem);
 
       const response = await fetch(`${API_BASE_URL}/carts/me/add-item/`, {
         method: "POST",
@@ -496,39 +411,19 @@ const ProductDetailPage = () => {
       });
 
       const data = await response.json();
-      console.log("Add to cart response:", data);
 
       if (response.ok) {
-        toast.success(
-          <div className="flex items-center gap-2">
-            <Check className="w-5 h-5 text-green-500" />
-            <span>محصول به سبد خرید اضافه شد</span>
-          </div>,
-          {
-            duration: 10000, // 10 seconds
-            position: "bottom-left",
-            style: {
-              background: "#10B981",
-              color: "white",
-              padding: "16px",
-              borderRadius: "12px",
-              boxShadow:
-                "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-            },
-            icon: <ShoppingCart className="w-5 h-5" />,
-          }
-        );
-        // Update cart count
+        toast.success("محصول با موفقیت به سبد خرید اضافه شد", {
+          duration: 3000,
+          position: "bottom-left",
+        });
         window.dispatchEvent(new CustomEvent("cartUpdated"));
       } else {
         console.error("Add to cart failed:", data);
-        toast.error(
-          data.detail || data.message || "خطا در افزودن به سبد خرید",
-          {
-            duration: 4000,
-            position: "bottom-left",
-          }
-        );
+        toast.error(data.detail || "خطا در افزودن به سبد خرید", {
+          duration: 4000,
+          position: "bottom-left",
+        });
       }
     } catch (error) {
       console.error("Error adding to cart:", error);
@@ -541,16 +436,12 @@ const ProductDetailPage = () => {
     }
   };
 
-  // Handle add to wishlist with toast notification
+  // --- FIXED: Handle add to wishlist ---
   const handleAddToWishlist = async () => {
-    // Check authentication
     const token = getAuthToken();
     if (!token) {
       setShowLoginModal(true);
-      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید", {
-        duration: 4000,
-        position: "bottom-left",
-      });
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
       return;
     }
 
@@ -577,9 +468,6 @@ const ProductDetailPage = () => {
         body: body,
       });
 
-      const data = await response.json();
-      console.log("Wishlist response:", data);
-
       if (response.ok) {
         setIsLiked(!isLiked);
         setWishlistCount((prev) =>
@@ -587,33 +475,12 @@ const ProductDetailPage = () => {
         );
 
         toast.success(
-          <div className="flex items-center gap-2">
-            <Check className="w-5 h-5 text-green-500" />
-            <span>
-              {isLiked
-                ? "از علاقه‌مندی‌ها حذف شد"
-                : "به علاقه‌مندی‌ها اضافه شد"}
-            </span>
-          </div>,
-          {
-            duration: 10000, // 10 seconds
-            position: "bottom-left",
-            style: {
-              background: isLiked ? "#EF4444" : "#EC4899",
-              color: "white",
-              padding: "16px",
-              borderRadius: "12px",
-              boxShadow:
-                "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-            },
-            icon: (
-              <Heart className={`w-5 h-5 ${isLiked ? "" : "fill-white"}`} />
-            ),
-          }
+          isLiked ? "از علاقه‌مندی‌ها حذف شد" : "به علاقه‌مندی‌ها اضافه شد",
+          { duration: 3000, position: "bottom-left" }
         );
       } else {
-        console.error("Wishlist operation failed:", data);
-        toast.error(data.detail || data.message || "خطا در عملیات", {
+        const data = await response.json();
+        toast.error(data.detail || "خطا در عملیات", {
           duration: 4000,
           position: "bottom-left",
         });
@@ -629,23 +496,17 @@ const ProductDetailPage = () => {
     }
   };
 
-  // Handle add comment - FIXED API
+  // --- FIXED: Handle add comment ---
   const handleAddComment = async () => {
     if (!newComment.trim()) {
-      toast.error("لطفا متن نظر خود را وارد کنید", {
-        duration: 3000,
-        position: "bottom-left",
-      });
+      toast.error("لطفا متن نظر خود را وارد کنید");
       return;
     }
 
     const token = getAuthToken();
     if (!token) {
       setShowLoginModal(true);
-      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید", {
-        duration: 4000,
-        position: "bottom-left",
-      });
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
       return;
     }
 
@@ -653,17 +514,11 @@ const ProductDetailPage = () => {
 
     try {
       const commentData = {
-        product: product.id || product._id,
-        content: newComment,
+        product: productId,
+        content: newComment.trim(),
       };
 
-      // Only add rating if provided
-      if (rating > 0) {
-        commentData.rating = rating;
-      }
-
-      console.log("Adding comment:", commentData);
-
+      console.log(commentData)
       const response = await fetch(`${API_BASE_URL}/comments/`, {
         method: "POST",
         headers: {
@@ -674,64 +529,61 @@ const ProductDetailPage = () => {
       });
 
       const data = await response.json();
-      console.log("Add comment response:", data);
+      console.log(data)
 
       if (response.ok) {
-        toast.success(
-          <div className="flex items-center gap-2">
-            <Check className="w-5 h-5 text-green-500" />
-            <span>نظر شما با موفقیت ثبت شد</span>
-          </div>,
-          {
-            duration: 4000,
-            position: "bottom-left",
-            style: {
-              background: "#10B981",
-              color: "white",
-              padding: "12px 16px",
-              borderRadius: "12px",
-            },
-          }
-        );
+        toast.success("نظر شما با موفقیت ثبت شد");
         setNewComment("");
-        setRating(0);
-        fetchComments();
+        fetchComments(); // Refresh comments list
       } else {
-        console.error("Add comment failed:", data);
-        const errorMsg =
-          data.detail ||
-          data.message ||
-          (data.content && data.content[0]) ||
-          "خطا در ثبت نظر";
-        toast.error(errorMsg, {
-          duration: 4000,
-          position: "bottom-left",
-        });
+        let errorMsg = "خطا در ثبت نظر";
+
+        // Handle different error formats
+        if (data.detail) {
+          errorMsg = data.detail;
+        } else if (data.content && Array.isArray(data.content)) {
+          errorMsg = data.content[0];
+        } else if (
+          data.non_field_errors &&
+          Array.isArray(data.non_field_errors)
+        ) {
+          errorMsg = data.non_field_errors[0];
+        } else if (typeof data === "object") {
+          errorMsg = Object.values(data).flat()[0] || errorMsg;
+        }
+
+        toast.error(errorMsg);
       }
     } catch (error) {
       console.error("Error adding comment:", error);
-      toast.error("خطا در ارتباط با سرور", {
-        duration: 4000,
-        position: "bottom-left",
-      });
+      toast.error("خطا در ارتباط با سرور");
     } finally {
       setAddingComment(false);
     }
   };
 
-  // Handle rate product
+  // --- FIXED: Handle rate product ---
   const handleRateProduct = async (selectedRating) => {
     const token = getAuthToken();
     if (!token) {
       setShowLoginModal(true);
-      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید", {
-        duration: 4000,
-        position: "bottom-left",
-      });
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
+      return;
+    }
+
+    console.log("Rating: ");
+    console.log(selectedRating);
+    // Convert to number and validate
+    const numericRating = parseFloat(selectedRating);
+
+    console.log(typeof numericRating);
+    if (isNaN(numericRating) || numericRating < 1 || numericRating > 5) {
+      toast.error("امتیاز باید بین 1 تا 5 باشد");
       return;
     }
 
     try {
+      // Try with JSON format first
       const response = await fetch(
         `${API_BASE_URL}/products/${productId}/rate/`,
         {
@@ -740,37 +592,74 @@ const ProductDetailPage = () => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ rating: selectedRating }),
+          body: JSON.stringify({ rating: numericRating }),
         }
       );
 
       const data = await response.json();
-      console.log("Rate product response:", data);
-
+      console.log(data);
       if (response.ok) {
-        setRating(selectedRating);
-        toast.success(`امتیاز ${selectedRating} ثبت شد ✓`, {
-          duration: 3000,
-          position: "bottom-left",
-        });
-        fetchProductDetails(); // Refresh product data
+        setRating(numericRating);
+        toast.success(`امتیاز ${numericRating} ثبت شد`);
+
+        // Refresh product data to show updated rating
+        fetchProductDetails();
       } else {
-        console.error("Rate product failed:", data);
-        toast.error(data.detail || data.message || "خطا در ثبت امتیاز", {
-          duration: 4000,
-          position: "bottom-left",
-        });
+        let errorMsg = "خطا در ثبت امتیاز";
+
+        // Handle error responses
+        if (data.rating && Array.isArray(data.rating)) {
+          errorMsg = data.rating[0];
+        } else if (data.detail) {
+          errorMsg = data.detail;
+        } else if (typeof data === "object") {
+          errorMsg = Object.values(data).flat()[0] || errorMsg;
+        }
+
+        toast.error(errorMsg);
       }
     } catch (error) {
       console.error("Error rating product:", error);
-      toast.error("خطا در ارتباط با سرور", {
-        duration: 4000,
-        position: "bottom-left",
-      });
+      toast.error("خطا در ارتباط با سرور");
     }
   };
 
-  // Handle share product
+  // --- FIXED: Handle reply to comment ---
+  const handleReplyToComment = async (commentId, replyContent) => {
+    const token = getAuthToken();
+    if (!token) {
+      setShowLoginModal(true);
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/comments/${commentId}/reply/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ content: replyContent.trim() }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success("پاسخ شما ثبت شد");
+        fetchComments(); // Refresh comments
+      } else {
+        toast.error(data.detail || "خطا در ثبت پاسخ");
+      }
+    } catch (error) {
+      console.error("Error replying to comment:", error);
+      toast.error("خطا در ارتباط با سرور");
+    }
+  };
+
   const handleShareProduct = () => {
     const productUrl = window.location.href;
 
@@ -785,36 +674,40 @@ const ProductDetailPage = () => {
     } else {
       navigator.clipboard
         .writeText(productUrl)
-        .then(() =>
-          toast.success("لینک محصول کپی شد ✓", {
-            duration: 3000,
-            position: "bottom-left",
-          })
-        )
-        .catch(() =>
-          toast.error("خطا در کپی کردن لینک", {
-            duration: 3000,
-            position: "bottom-left",
-          })
-        );
+        .then(() => toast.success("لینک محصول کپی شد"))
+        .catch(() => toast.error("خطا در کپی کردن لینک"));
     }
   };
 
-  // Handle login confirm
   const handleLoginConfirm = () => {
     setShowLoginModal(false);
     router.push("/auth/user-login");
   };
 
-  // Initialize
   useEffect(() => {
     if (productId) {
       fetchProductDetails();
       fetchUserData();
     }
-  }, [productId]);
+  }, [productId, fetchProductDetails]);
 
-  // Loading state
+  // Add Toaster configuration
+  useEffect(() => {
+    const toasterOptions = {
+      position: "top-center",
+      toastOptions: {
+        className: "font-vazirmatn",
+        style: {
+          fontFamily: "var(--font-vazirmatn), sans-serif",
+          direction: "rtl",
+          borderRadius: "10px",
+          background: "#333",
+          color: "#fff",
+        },
+      },
+    };
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
@@ -828,23 +721,10 @@ const ProductDetailPage = () => {
     );
   }
 
-  // Error state
   if (error || !product) {
     return (
       <>
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            className: "font-vazirmatn",
-            style: {
-              fontFamily: "var(--font-vazirmatn), sans-serif",
-              direction: "rtl",
-              borderRadius: "10px",
-              background: "#333",
-              color: "#fff",
-            },
-          }}
-        />
+        <Toaster />
 
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
           <div className="text-center max-w-md mx-auto">
@@ -876,7 +756,6 @@ const ProductDetailPage = () => {
     );
   }
 
-  // Get product images
   const productImages = product.images || [];
   const mainImageUrl =
     productImages.length > selectedImageIndex
@@ -887,7 +766,8 @@ const ProductDetailPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-      {/* Login Modal */}
+      <Toaster />
+
       {showLoginModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in">
@@ -966,41 +846,6 @@ const ProductDetailPage = () => {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Breadcrumb */}
-        <nav className="mb-6">
-          <ol className="flex items-center text-sm text-gray-600">
-            <li>
-              <button
-                onClick={() => router.push("/")}
-                className="hover:text-blue-600 transition-colors"
-              >
-                خانه
-              </button>
-            </li>
-            <li className="mx-2">
-              <ChevronLeft className="w-4 h-4 rotate-180" />
-            </li>
-            {ownerStore && (
-              <>
-                <li>
-                  <button
-                    onClick={() =>
-                      router.push(`/stores/${ownerStore.id || ownerStore._id}`)
-                    }
-                    className="hover:text-blue-600 transition-colors"
-                  >
-                    {ownerStore.store_name || "فروشگاه"}
-                  </button>
-                </li>
-                <li className="mx-2">
-                  <ChevronLeft className="w-4 h-4 rotate-180" />
-                </li>
-              </>
-            )}
-            <li className="text-gray-900 font-medium">{product.title}</li>
-          </ol>
-        </nav>
-
         {/* Main Product Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
           {/* Product Header with Quick Actions */}
@@ -1014,7 +859,9 @@ const ProductDetailPage = () => {
                   <div className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-1 rounded-lg">
                     <Star className="w-3 h-3 fill-current" />
                     <span className="text-xs font-medium">
-                      {product.rating?.average?.toFixed(1) || "۴.۸"}
+                      {product.rating?.average?.toFixed(1) ||
+                        product.average_rating?.toFixed(1) ||
+                        "۰"}
                     </span>
                   </div>
                 </div>
@@ -1033,26 +880,6 @@ const ProductDetailPage = () => {
                   title="اشتراک گذاری"
                 >
                   <Share2 className="w-5 h-5 text-gray-600" />
-                </button>
-                <button
-                  onClick={handleAddToWishlist}
-                  disabled={addingToWishlist}
-                  className={`p-2 rounded-xl transition-all duration-300 ${
-                    isLiked
-                      ? "text-red-500 bg-red-50"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                  title={
-                    isLiked ? "حذف از علاقه‌مندی‌ها" : "افزودن به علاقه‌مندی‌ها"
-                  }
-                >
-                  {addingToWishlist ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Heart
-                      className={`w-5 h-5 ${isLiked ? "fill-current" : ""}`}
-                    />
-                  )}
                 </button>
               </div>
             </div>
@@ -1101,13 +928,11 @@ const ProductDetailPage = () => {
                       </>
                     )}
 
-                    {/* Zoom Indicator */}
                     <div className="absolute top-4 left-4 bg-black/50 text-white px-2 py-1 rounded-lg text-xs opacity-0 hover:opacity-100 transition-opacity">
                       <ZoomIn className="w-3 h-3 inline ml-1" />
                       کلیک برای زوم
                     </div>
 
-                    {/* Discount Badge */}
                     {product.compare_price > product.price && (
                       <div className="absolute top-4 right-4 bg-gradient-to-r from-red-500 to-pink-600 text-white px-3 py-1 rounded-lg font-bold text-sm shadow-lg">
                         {calculateDiscount(
@@ -1209,10 +1034,12 @@ const ProductDetailPage = () => {
                   <div className="flex items-center gap-2">
                     <Star className="w-5 h-5 text-amber-500 fill-current" />
                     <span className="text-amber-700 font-bold">
-                      {product.rating?.average?.toFixed(1) || "۴.۸"}
+                      {product.rating?.average?.toFixed(1) ||
+                        product.average_rating?.toFixed(1) ||
+                        "۰"}
                     </span>
                     <span className="text-gray-600 text-sm">
-                      ({product.rating?.count || 0} نظر)
+                      ({product.rating?.count || product.rating_count || 0} نظر)
                     </span>
                   </div>
                 </div>
@@ -1240,7 +1067,7 @@ const ProductDetailPage = () => {
 
               {/* Options Selection */}
               <div className="space-y-4">
-                {/* Colors - Display as colored circles */}
+                {/* Colors */}
                 {product.colors?.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1367,6 +1194,25 @@ const ProductDetailPage = () => {
                       {product.stock > 0 ? "افزودن به سبد خرید" : "ناموجود"}
                     </>
                   )}
+                </button>
+
+                <button
+                  onClick={handleAddToWishlist}
+                  disabled={addingToWishlist}
+                  className={`px-6 py-4 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-3 border-2 ${
+                    isLiked
+                      ? "border-red-500 bg-red-50 text-red-500 hover:bg-red-100"
+                      : "border-gray-300 text-gray-600 hover:bg-gray-50 hover:border-gray-400"
+                  }`}
+                >
+                  {addingToWishlist ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Heart
+                      className={`w-5 h-5 ${isLiked ? "fill-current" : ""}`}
+                    />
+                  )}
+                  {addingToWishlist ? "" : isLiked ? "" : "علاقه‌مندی"}
                 </button>
 
                 {ownerStore && (
@@ -1539,18 +1385,18 @@ const ProductDetailPage = () => {
 
               {activeTab === "comments" && (
                 <div className="space-y-8">
-                  {/* Add Comment */}
+                  {/* Add Comment Section */}
                   <div className="bg-gray-50 rounded-2xl p-6">
                     <h3 className="text-lg font-bold text-gray-900 mb-4">
                       ثبت نظر جدید
                     </h3>
                     <div className="space-y-4">
-                      {/* Rating Stars */}
+                      {/* Rating Section */}
                       <div>
                         <p className="text-sm text-gray-600 mb-2">
                           امتیاز دهید:
                         </p>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 mb-4">
                           {[1, 2, 3, 4, 5].map((star) => (
                             <button
                               key={star}
@@ -1558,9 +1404,10 @@ const ProductDetailPage = () => {
                               onMouseEnter={() => setHoverRating(star)}
                               onMouseLeave={() => setHoverRating(0)}
                               className="p-1 hover:scale-110 transition-transform"
+                              title={`امتیاز ${star}`}
                             >
                               <Star
-                                className={`w-6 h-6 ${
+                                className={`w-8 h-8 ${
                                   (hoverRating || rating) >= star
                                     ? "text-amber-500 fill-current"
                                     : "text-gray-300"
@@ -1571,6 +1418,7 @@ const ProductDetailPage = () => {
                         </div>
                       </div>
 
+                      {/* Comment Input */}
                       <textarea
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
@@ -1633,10 +1481,16 @@ const ProductDetailPage = () => {
                                   <div className="flex items-center gap-2 mt-1">
                                     {comment.rating && (
                                       <div className="flex items-center gap-1">
-                                        <Star className="w-3 h-3 text-amber-500 fill-current" />
-                                        <span className="text-xs text-gray-600">
-                                          {comment.rating}
-                                        </span>
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                          <Star
+                                            key={star}
+                                            className={`w-3 h-3 ${
+                                              star <= comment.rating
+                                                ? "text-amber-500 fill-current"
+                                                : "text-gray-300"
+                                            }`}
+                                          />
+                                        ))}
                                       </div>
                                     )}
                                     <span className="text-xs text-gray-500">
@@ -1649,13 +1503,42 @@ const ProductDetailPage = () => {
                                   </div>
                                 </div>
                               </div>
-                              <button className="p-2 hover:bg-gray-100 rounded-lg">
-                                <ThumbsUp className="w-5 h-5 text-gray-600" />
-                              </button>
                             </div>
-                            <p className="text-gray-700 leading-relaxed">
+                            <p className="text-gray-700 leading-relaxed mb-4">
                               {comment.content || comment.text}
                             </p>
+
+                            {/* Replies Section */}
+                            {comment.replies && comment.replies.length > 0 && (
+                              <div className="mr-8 border-r-2 border-blue-100 pr-4">
+                                <div className="space-y-4">
+                                  {comment.replies.map((reply, index) => (
+                                    <div
+                                      key={index}
+                                      className="bg-blue-50 rounded-xl p-4"
+                                    >
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs">
+                                          {reply.user?.first_name?.[0] || "پ"}
+                                        </div>
+                                        <span className="font-medium text-blue-700">
+                                          {reply.user?.first_name ||
+                                            "پاسخ‌دهنده"}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                          {new Date(
+                                            reply.created_at || Date.now()
+                                          ).toLocaleDateString("fa-IR")}
+                                        </span>
+                                      </div>
+                                      <p className="text-gray-700 text-sm">
+                                        {reply.content}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1691,7 +1574,6 @@ const ProductDetailPage = () => {
                         setShowLoginModal(true);
                         toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
                       } else {
-                        // Implement question asking functionality
                         toast.success("این قابلیت به زودی اضافه خواهد شد");
                       }
                     }}
@@ -1724,7 +1606,7 @@ const ProductDetailPage = () => {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
               {relatedProducts.map((relatedProduct) => {
                 const relatedImageUrl = getFullImageUrl(
                   getProductImageUrl(relatedProduct)
@@ -1744,7 +1626,7 @@ const ProductDetailPage = () => {
                       router.push(`/product-details/${relatedProductId}`)
                     }
                   >
-                    <div className="aspect-square relative overflow-hidden">
+                    <div className="h-97 relative overflow-hidden">
                       {relatedImageUrl ? (
                         <img
                           src={relatedImageUrl}
@@ -1766,31 +1648,6 @@ const ProductDetailPage = () => {
                           %
                         </div>
                       )}
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-semibold text-gray-900 text-sm mb-2 line-clamp-2">
-                        {relatedProduct.title}
-                      </h3>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          <span className="text-blue-600 font-bold text-lg">
-                            {formatCurrency(relatedProduct.price)}
-                          </span>
-                          {relatedProduct.compare_price >
-                            relatedProduct.price && (
-                            <span className="text-gray-500 text-sm line-through">
-                              {formatCurrency(relatedProduct.compare_price)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 text-amber-500 fill-current" />
-                          <span className="text-xs text-gray-600">
-                            {relatedProduct.rating?.average?.toFixed(1) ||
-                              "۴.۸"}
-                          </span>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 );
