@@ -23,20 +23,11 @@
     },
     {
       "id": 3,
-      "title": "کودک",
+      "title": "کودک و نوزاد",
       "href": "/kids",
       "subcategories": [
         { "id": 1, "title": "پسرانه", "href": "/kids/boys" },
         { "id": 2, "title": "دخترانه", "href": "/kids/girls" }
-      ]
-    },
-    {
-      "id": 4,
-      "title": "نوزاد",
-      "href": "/baby",
-      "subcategories": [
-        { "id": 1, "title": "لباس نوزاد", "href": "/baby/clothing" },
-        { "id": 2, "title": "اسباب بازی", "href": "/baby/toys" }
       ]
     }
   ],
