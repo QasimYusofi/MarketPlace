@@ -786,23 +786,54 @@ class WishlistViewSet(viewsets.GenericViewSet):
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'], url_path='add')
+    @action(detail=False, methods=['post'], url_path='add-product')
     def add_product(self, request, pk=None):
         """Add a product to the wishlist"""
-        wishlist = self.get_object()
+        # Get the authenticated user's wishlist
+        if not request.user.is_authenticated or not hasattr(request.user, 'user_type') or request.user.user_type != 'customer':
+            return Response(
+                {'detail': 'Only customers can manage their wishlist'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            customer = Customer.objects.get(id=request.user.id)
+            wishlist, created = Wishlist.objects.get_or_create(user=customer)
+        except Customer.DoesNotExist:
+            return Response(
+                {'detail': 'Customer not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         serializer = AddToWishlistSerializer(data=request.data)
         if serializer.is_valid():
             product_id = serializer.validated_data['product_id']
             result = wishlist.add_product(product_id)
-            return Response(result, status=status.HTTP_200_OK if not result['added'] else status.HTTP_201_CREATED)
+            return Response(result, status=status.HTTP_200_OK if not result.get('added') else status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['delete'], url_path=r'remove/(?P<product_id>[^/]+)')
+    @action(detail=False, methods=['post'], url_path='remove-product')
     def remove_product(self, request, pk=None, product_id=None):
         """Remove a product from the wishlist"""
-        wishlist = self.get_object()
+        # Get the authenticated user's wishlist
+        if not request.user.is_authenticated or not hasattr(request.user, 'user_type') or request.user.user_type != 'customer':
+            return Response(
+                {'detail': 'Only customers can manage their wishlist'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            customer = Customer.objects.get(id=request.user.id)
+            wishlist, created = Wishlist.objects.get_or_create(user=customer)
+        except Customer.DoesNotExist:
+            return Response(
+                {'detail': 'Customer not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
+        # Get product_id from request data
+        product_id = request.data.get('product_id')
+        
         if not product_id:
             return Response(
                 {'detail': 'Product ID is required'},
@@ -813,10 +844,25 @@ class WishlistViewSet(viewsets.GenericViewSet):
         status_code = status.HTTP_200_OK if result['removed'] else status.HTTP_404_NOT_FOUND
         return Response(result, status=status_code)
 
-    @action(detail=True, methods=['post'], url_path='clear')
+    @action(detail=False, methods=['post'], url_path='clear')
     def clear(self, request, pk=None):
         """Clear all products from the wishlist"""
-        wishlist = self.get_object()
+        # Get the authenticated user's wishlist
+        if not request.user.is_authenticated or not hasattr(request.user, 'user_type') or request.user.user_type != 'customer':
+            return Response(
+                {'detail': 'Only customers can manage their wishlist'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            customer = Customer.objects.get(id=request.user.id)
+            wishlist, created = Wishlist.objects.get_or_create(user=customer)
+        except Customer.DoesNotExist:
+            return Response(
+                {'detail': 'Customer not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
         result = wishlist.clear()
         return Response(result, status=status.HTTP_200_OK)
 
