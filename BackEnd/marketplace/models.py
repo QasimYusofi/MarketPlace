@@ -1059,12 +1059,6 @@ class Comment(models.Model):
     class Meta:
         verbose_name = "Comment"
         verbose_name_plural = "Comments"
-        indexes = [
-            models.Index(fields=['product']),
-            models.Index(fields=['author']),
-            models.Index(fields=['parent']),
-            models.Index(fields=['created_at']),
-        ]
         ordering = ['created_at']
 
     def __str__(self):
