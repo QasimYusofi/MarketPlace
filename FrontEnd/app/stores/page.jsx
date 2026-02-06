@@ -279,7 +279,7 @@ const ModernStorePage = () => {
 
   const handleProductClick = (productId, storeId) => {
     if (productId) {
-      router.push(`/stores/${storeId}/${productId}`);
+      router.push(`/product-details/${productId}/`);
     }
   };
 
@@ -355,7 +355,6 @@ const ModernStorePage = () => {
 
         {/* Store Header/Brand Logo - Only for women's category and if we have store details */}
         {storeDetails &&
-          isWomen &&
           activeStore === storeDetails.id &&
           stores.length > 0 && (
             <div

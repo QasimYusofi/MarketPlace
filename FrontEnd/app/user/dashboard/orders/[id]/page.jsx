@@ -636,7 +636,7 @@ export default function OrderDetailsPage() {
                           </p>
                           {product && (
                             <Link
-                              href={`/product/${product.id}`}
+                              href={`/product-details/${product.id}`}
                               className="inline-flex items-center text-blue-600 hover:text-blue-700 text-sm mt-2"
                             >
                               مشاهده محصول

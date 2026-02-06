@@ -10,7 +10,7 @@ import featuredProducts from "./../data/featuredProducts.json";
 import siteConfig from "./../data/siteConfig.json";
 import FooterPage from "./../components/Footer/footer";
 import Header from "./../components/Header/header";
-// import ModernStorePage from "./stores/page";
+import ModernStorePage from "./stores/page";
 export default function HomePage() {
   const [activeFilter, setActiveFilter] = useState(0);
   const [cartCount, setCartCount] = useState(0);
@@ -79,7 +79,7 @@ export default function HomePage() {
               {siteConfig.site.description}
             </p>
             <Link
-              href="/products"
+              href="/"
               className="bg-white text-gray-900 px-8 py-4 rounded-full font-semibold hover:bg-gray-100 transition-colors inline-block"
             >
               خرید آنلاین
@@ -89,7 +89,7 @@ export default function HomePage() {
       </section>
 
       {/* Products Grid */}
-      <div className="max-w-7xl mx-auto">{/* <ModernStorePage /> */}</div>
+      <div className="max-w-7xl mx-auto">{<ModernStorePage />}</div>
 
       {/* Featured Products Section */}
       <div className="max-w-7xl mx-auto px-4 pb-16">

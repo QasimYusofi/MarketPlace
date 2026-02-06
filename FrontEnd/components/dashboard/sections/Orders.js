@@ -740,6 +740,7 @@ export default function StoreOwnerOrdersPage() {
                   const user = order.user;
                   const shippingAddress = order.shipping_address;
                   const updateOptions = statusUpdateOptions[order.status] || [];
+                  console.log(order.id);
 
                   return (
                     <div

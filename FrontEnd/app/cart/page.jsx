@@ -721,7 +721,7 @@ export default function CartPage() {
 
                 {/* Cart Items List */}
                 <div className="space-y-4">
-                  {cart.items.map((item) => {
+                  {cart.items.map((item, index) => {
                     const product = products[item.product_id];
                     const isLoading = loadingStates.products[item.product_id];
                     const isUpdating =
@@ -737,7 +737,7 @@ export default function CartPage() {
 
                     return (
                       <div
-                        key={itemId}
+                        key={index}
                         className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all duration-200 ${
                           isSelected
                             ? "border-blue-500 ring-1 ring-blue-500"
