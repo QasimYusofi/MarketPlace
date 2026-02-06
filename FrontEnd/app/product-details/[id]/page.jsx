@@ -518,6 +518,7 @@ const ProductDetailPage = () => {
         content: newComment.trim(),
       };
 
+      console.log(commentData)
       const response = await fetch(`${API_BASE_URL}/comments/`, {
         method: "POST",
         headers: {
@@ -528,6 +529,7 @@ const ProductDetailPage = () => {
       });
 
       const data = await response.json();
+      console.log(data)
 
       if (response.ok) {
         toast.success("نظر شما با موفقیت ثبت شد");
@@ -590,7 +592,7 @@ const ProductDetailPage = () => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ rating: 4.5 }),
+          body: JSON.stringify({ rating: numericRating }),
         }
       );
 
