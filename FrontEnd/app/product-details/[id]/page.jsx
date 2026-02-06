@@ -217,9 +217,13 @@ const ProductDetailPage = () => {
       fetchComments();
 
       // Increment view count
-      await fetch(`${API_BASE_URL}/products/${productId}/view/`, {
-        method: "POST",
-      });
+      try {
+        await fetch(`${API_BASE_URL}/products/${productId}/view/`, {
+          method: "POST",
+        });
+      } catch (error) {
+        console.error("Error incrementing view count:", error);
+      }
 
       const token = getAuthToken();
       if (token) {
@@ -333,6 +337,13 @@ const ProductDetailPage = () => {
           commentsArray = commentsData.comments;
         }
 
+        // Sort comments by date (newest first)
+        commentsArray.sort((a, b) => {
+          const dateA = new Date(a.created_at || a.date);
+          const dateB = new Date(b.created_at || b.date);
+          return dateB - dateA;
+        });
+
         setComments(commentsArray);
       } else {
         setComments([]);
@@ -377,7 +388,6 @@ const ProductDetailPage = () => {
     setAddingToCart(true);
 
     try {
-      // Constructing payload exactly as API expects
       const cartItem = {
         product_id: product.id || product._id,
         quantity: quantity,
@@ -486,7 +496,7 @@ const ProductDetailPage = () => {
     }
   };
 
-  // --- FIXED: Handle add comment (Separated from Rating) ---
+  // --- FIXED: Handle add comment ---
   const handleAddComment = async () => {
     if (!newComment.trim()) {
       toast.error("لطفا متن نظر خود را وارد کنید");
@@ -503,10 +513,9 @@ const ProductDetailPage = () => {
     setAddingComment(true);
 
     try {
-      // Only sending content and product ID as per API docs
       const commentData = {
-        product: product.id || product._id,
-        content: newComment,
+        product: productId,
+        content: newComment.trim(),
       };
 
       const response = await fetch(`${API_BASE_URL}/comments/`, {
@@ -523,9 +532,24 @@ const ProductDetailPage = () => {
       if (response.ok) {
         toast.success("نظر شما با موفقیت ثبت شد");
         setNewComment("");
-        fetchComments();
+        fetchComments(); // Refresh comments list
       } else {
-        const errorMsg = data.detail || data.message || "خطا در ثبت نظر";
+        let errorMsg = "خطا در ثبت نظر";
+
+        // Handle different error formats
+        if (data.detail) {
+          errorMsg = data.detail;
+        } else if (data.content && Array.isArray(data.content)) {
+          errorMsg = data.content[0];
+        } else if (
+          data.non_field_errors &&
+          Array.isArray(data.non_field_errors)
+        ) {
+          errorMsg = data.non_field_errors[0];
+        } else if (typeof data === "object") {
+          errorMsg = Object.values(data).flat()[0] || errorMsg;
+        }
+
         toast.error(errorMsg);
       }
     } catch (error) {
@@ -536,7 +560,7 @@ const ProductDetailPage = () => {
     }
   };
 
-  // --- FIXED: Handle rate product (Separate from Comments) ---
+  // --- FIXED: Handle rate product ---
   const handleRateProduct = async (selectedRating) => {
     const token = getAuthToken();
     if (!token) {
@@ -545,19 +569,20 @@ const ProductDetailPage = () => {
       return;
     }
 
-    // Force Integer (e.g., 4.5 becomes 4) because the backend says "must be a number"
-    const numericRating = parseInt(selectedRating);
+    console.log("Rating: ");
+    console.log(selectedRating);
+    // Convert to number and validate
+    const numericRating = parseFloat(selectedRating);
 
-    if (isNaN(numericRating) || numericRating <= 0) {
-      toast.error("امتیاز نامعتبر است");
+    console.log(typeof numericRating);
+    if (isNaN(numericRating) || numericRating < 1 || numericRating > 5) {
+      toast.error("امتیاز باید بین 1 تا 5 باشد");
       return;
     }
 
     try {
-      console.log(`Attempting to rate with: ${numericRating}`);
-
-      // 1. Try standard JSON first
-      let response = await fetch(
+      // Try with JSON format first
+      const response = await fetch(
         `${API_BASE_URL}/products/${productId}/rate/`,
         {
           method: "POST",
@@ -565,53 +590,70 @@ const ProductDetailPage = () => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ rating: numericRating }),
+          body: JSON.stringify({ rating: 4.5 }),
         }
       );
 
-      let data = {};
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        data = await response.json();
-      }
-
-      // 2. If JSON fails, try x-www-form-urlencoded (Common Django Fix)
-      if (!response.ok && response.status === 400) {
-        console.log("JSON failed, trying Form-Encoded fallback...");
-        response = await fetch(`${API_BASE_URL}/products/${productId}/rate/`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          // format: rating=5
-          body: `rating=${numericRating}`,
-        });
-
-        if (contentType && contentType.includes("application/json")) {
-          data = await response.json();
-        }
-      }
-
+      const data = await response.json();
+      console.log(data);
       if (response.ok) {
         setRating(numericRating);
         toast.success(`امتیاز ${numericRating} ثبت شد`);
+
+        // Refresh product data to show updated rating
         fetchProductDetails();
       } else {
-        console.error("Rate product failed (Final):", data);
-
-        // Extract the specific error message from the array
         let errorMsg = "خطا در ثبت امتیاز";
+
+        // Handle error responses
         if (data.rating && Array.isArray(data.rating)) {
-          errorMsg = data.rating[0]; // e.g. "امتیاز باید یک عدد باشد"
+          errorMsg = data.rating[0];
         } else if (data.detail) {
           errorMsg = data.detail;
+        } else if (typeof data === "object") {
+          errorMsg = Object.values(data).flat()[0] || errorMsg;
         }
 
         toast.error(errorMsg);
       }
     } catch (error) {
       console.error("Error rating product:", error);
+      toast.error("خطا در ارتباط با سرور");
+    }
+  };
+
+  // --- FIXED: Handle reply to comment ---
+  const handleReplyToComment = async (commentId, replyContent) => {
+    const token = getAuthToken();
+    if (!token) {
+      setShowLoginModal(true);
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/comments/${commentId}/reply/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ content: replyContent.trim() }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success("پاسخ شما ثبت شد");
+        fetchComments(); // Refresh comments
+      } else {
+        toast.error(data.detail || "خطا در ثبت پاسخ");
+      }
+    } catch (error) {
+      console.error("Error replying to comment:", error);
       toast.error("خطا در ارتباط با سرور");
     }
   };
@@ -645,7 +687,24 @@ const ProductDetailPage = () => {
       fetchProductDetails();
       fetchUserData();
     }
-  }, [productId]);
+  }, [productId, fetchProductDetails]);
+
+  // Add Toaster configuration
+  useEffect(() => {
+    const toasterOptions = {
+      position: "top-center",
+      toastOptions: {
+        className: "font-vazirmatn",
+        style: {
+          fontFamily: "var(--font-vazirmatn), sans-serif",
+          direction: "rtl",
+          borderRadius: "10px",
+          background: "#333",
+          color: "#fff",
+        },
+      },
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -663,19 +722,7 @@ const ProductDetailPage = () => {
   if (error || !product) {
     return (
       <>
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            className: "font-vazirmatn",
-            style: {
-              fontFamily: "var(--font-vazirmatn), sans-serif",
-              direction: "rtl",
-              borderRadius: "10px",
-              background: "#333",
-              color: "#fff",
-            },
-          }}
-        />
+        <Toaster />
 
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center p-4">
           <div className="text-center max-w-md mx-auto">
@@ -717,6 +764,8 @@ const ProductDetailPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+      <Toaster />
+
       {showLoginModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in">
@@ -808,7 +857,9 @@ const ProductDetailPage = () => {
                   <div className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-1 rounded-lg">
                     <Star className="w-3 h-3 fill-current" />
                     <span className="text-xs font-medium">
-                      {product.rating?.average?.toFixed(1) || "۴.۸"}
+                      {product.rating?.average?.toFixed(1) ||
+                        product.average_rating?.toFixed(1) ||
+                        "۰"}
                     </span>
                   </div>
                 </div>
@@ -981,10 +1032,12 @@ const ProductDetailPage = () => {
                   <div className="flex items-center gap-2">
                     <Star className="w-5 h-5 text-amber-500 fill-current" />
                     <span className="text-amber-700 font-bold">
-                      {product.rating?.average?.toFixed(1) || "۴.۸"}
+                      {product.rating?.average?.toFixed(1) ||
+                        product.average_rating?.toFixed(1) ||
+                        "۰"}
                     </span>
                     <span className="text-gray-600 text-sm">
-                      ({product.rating?.count || 0} نظر)
+                      ({product.rating?.count || product.rating_count || 0} نظر)
                     </span>
                   </div>
                 </div>
@@ -1117,7 +1170,7 @@ const ProductDetailPage = () => {
                 </div>
               </div>
 
-              {/* UPDATED: Buttons Together */}
+              {/* Action Buttons */}
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={handleAddToCart}
@@ -1330,18 +1383,18 @@ const ProductDetailPage = () => {
 
               {activeTab === "comments" && (
                 <div className="space-y-8">
-                  {/* Add Comment */}
+                  {/* Add Comment Section */}
                   <div className="bg-gray-50 rounded-2xl p-6">
                     <h3 className="text-lg font-bold text-gray-900 mb-4">
                       ثبت نظر جدید
                     </h3>
                     <div className="space-y-4">
-                      {/* Rating Stars - Separate from Comment */}
+                      {/* Rating Section */}
                       <div>
                         <p className="text-sm text-gray-600 mb-2">
                           امتیاز دهید:
                         </p>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 mb-4">
                           {[1, 2, 3, 4, 5].map((star) => (
                             <button
                               key={star}
@@ -1349,9 +1402,10 @@ const ProductDetailPage = () => {
                               onMouseEnter={() => setHoverRating(star)}
                               onMouseLeave={() => setHoverRating(0)}
                               className="p-1 hover:scale-110 transition-transform"
+                              title={`امتیاز ${star}`}
                             >
                               <Star
-                                className={`w-6 h-6 ${
+                                className={`w-8 h-8 ${
                                   (hoverRating || rating) >= star
                                     ? "text-amber-500 fill-current"
                                     : "text-gray-300"
@@ -1362,6 +1416,7 @@ const ProductDetailPage = () => {
                         </div>
                       </div>
 
+                      {/* Comment Input */}
                       <textarea
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
@@ -1424,10 +1479,16 @@ const ProductDetailPage = () => {
                                   <div className="flex items-center gap-2 mt-1">
                                     {comment.rating && (
                                       <div className="flex items-center gap-1">
-                                        <Star className="w-3 h-3 text-amber-500 fill-current" />
-                                        <span className="text-xs text-gray-600">
-                                          {comment.rating}
-                                        </span>
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                          <Star
+                                            key={star}
+                                            className={`w-3 h-3 ${
+                                              star <= comment.rating
+                                                ? "text-amber-500 fill-current"
+                                                : "text-gray-300"
+                                            }`}
+                                          />
+                                        ))}
                                       </div>
                                     )}
                                     <span className="text-xs text-gray-500">
@@ -1440,13 +1501,42 @@ const ProductDetailPage = () => {
                                   </div>
                                 </div>
                               </div>
-                              <button className="p-2 hover:bg-gray-100 rounded-lg">
-                                <ThumbsUp className="w-5 h-5 text-gray-600" />
-                              </button>
                             </div>
-                            <p className="text-gray-700 leading-relaxed">
+                            <p className="text-gray-700 leading-relaxed mb-4">
                               {comment.content || comment.text}
                             </p>
+
+                            {/* Replies Section */}
+                            {comment.replies && comment.replies.length > 0 && (
+                              <div className="mr-8 border-r-2 border-blue-100 pr-4">
+                                <div className="space-y-4">
+                                  {comment.replies.map((reply, index) => (
+                                    <div
+                                      key={index}
+                                      className="bg-blue-50 rounded-xl p-4"
+                                    >
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs">
+                                          {reply.user?.first_name?.[0] || "پ"}
+                                        </div>
+                                        <span className="font-medium text-blue-700">
+                                          {reply.user?.first_name ||
+                                            "پاسخ‌دهنده"}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                          {new Date(
+                                            reply.created_at || Date.now()
+                                          ).toLocaleDateString("fa-IR")}
+                                        </span>
+                                      </div>
+                                      <p className="text-gray-700 text-sm">
+                                        {reply.content}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
