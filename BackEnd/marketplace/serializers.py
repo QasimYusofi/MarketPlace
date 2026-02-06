@@ -106,6 +106,7 @@ class CommentSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField(read_only=True)
     author = serializers.SerializerMethodField(read_only=True)
     product = serializers.SerializerMethodField(read_only=True)
+    product_id = serializers.CharField(write_only=True, required=False, allow_blank=True)
     replies = serializers.SerializerMethodField(read_only=True)
 
     # Computed fields
@@ -116,6 +117,7 @@ class CommentSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'product',
+            'product_id',
             'author',
             'content',
             'parent',
@@ -177,7 +179,7 @@ class CommentSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("نظر والد یافت نشد")
 
             # Ensure parent belongs to the same product
-            product_id = self.context.get('product_id')
+            product_id = self.context.get('product_id') or self.initial_data.get('product_id')
             if product_id and str(parent_comment.product.id) != product_id:
                 raise serializers.ValidationError("نظر والد باید به همان محصول تعلق داشته باشد")
 
@@ -191,8 +193,9 @@ class CommentSerializer(serializers.ModelSerializer):
 
         user = request.user
 
-        # Get product id from URL
-        product_id = self.context.get('product_id')
+        # Get product id from multiple sources
+        product_id = self.context.get('product_id') or self.initial_data.get('product_id') or self.initial_data.get('product')
+        
         if not product_id:
             raise serializers.ValidationError("شناسه محصول یافت نشد")
 
@@ -569,10 +572,10 @@ class CartItemSerializer(serializers.Serializer):
     """Serializer for individual cart items"""
     product_id = serializers.CharField(required=True)
     quantity = serializers.IntegerField(min_value=1, default=1)
-    price_snapshot = serializers.DecimalField(max_digits=10, decimal_places=2, required=True)
+    price_snapshot = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     color = serializers.CharField(max_length=50, default="", required=False)
     size = serializers.CharField(max_length=50, default="", required=False)
-    owner_store_id = serializers.CharField(required=True)
+    owner_store_id = serializers.CharField(required=False, allow_blank=True)
 
     def validate_product_id(self, value):
         """Validate product exists and is active"""
@@ -585,7 +588,9 @@ class CartItemSerializer(serializers.Serializer):
         return value
 
     def validate_owner_store_id(self, value):
-        """Validate store exists"""
+        """Validate store exists if provided"""
+        if not value:
+            return value
         try:
             StoreOwner.objects.get(id=value)
         except StoreOwner.DoesNotExist:
@@ -594,6 +599,8 @@ class CartItemSerializer(serializers.Serializer):
 
     def validate_price_snapshot(self, value):
         """Convert Decimal to float for MongoDB compatibility"""
+        if value is None:
+            return value
         if isinstance(value, str):
             try:
                 value = float(value)
@@ -604,10 +611,30 @@ class CartItemSerializer(serializers.Serializer):
         return value
 
     def to_internal_value(self, data):
-        """Convert Decimal to float for MongoDB compatibility"""
+        """Convert Decimal to float for MongoDB compatibility and populate missing fields"""
         ret = super().to_internal_value(data)
-        if 'price_snapshot' in ret and hasattr(ret['price_snapshot'], '__float__'):
-            ret['price_snapshot'] = float(ret['price_snapshot'])
+        
+        # If price_snapshot is not provided, get it from the product
+        if not ret.get('price_snapshot'):
+            try:
+                product = Product.objects.get(id=ret['product_id'])
+                ret['price_snapshot'] = float(product.price)
+            except (Product.DoesNotExist, ValueError):
+                pass
+        
+        # If owner_store_id is not provided, get it from the product
+        if not ret.get('owner_store_id'):
+            try:
+                product = Product.objects.get(id=ret['product_id'])
+                ret['owner_store_id'] = str(product.store_owner.id)
+            except (Product.DoesNotExist, AttributeError):
+                pass
+        
+        # Convert price_snapshot to float
+        if 'price_snapshot' in ret and ret['price_snapshot'] is not None:
+            if hasattr(ret['price_snapshot'], '__float__'):
+                ret['price_snapshot'] = float(ret['price_snapshot'])
+        
         return ret
 
 

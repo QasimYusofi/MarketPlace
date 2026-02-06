@@ -44,7 +44,7 @@ class CustomerAPITestCase(APITestCase):
     def test_list_customers_api_requires_admin(self):
         """Test listing customers requires admin permission"""
         response = self.client.get('/api/users/')
-        self.assertIn(response.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_retrieve_customer_api(self):
         """Test retrieving customer via API"""
@@ -240,7 +240,7 @@ class CartAPITestCase(APITestCase):
             'size': 'M'
         }
         response = self.client.post(f'/api/carts/{self.cart.id}/add-item/', cart_item_data, format='json')
-        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_201_CREATED, status.HTTP_400_BAD_REQUEST])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_remove_from_cart_api(self):
         """Test removing item from cart"""
@@ -253,7 +253,7 @@ class CartAPITestCase(APITestCase):
         self.client.post('/api/carts/add-item/', cart_item_data, format='json')
         # Then remove it
         response = self.client.post('/api/carts/remove-item/', {'product_id': str(self.product.id)}, format='json')
-        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST, status.HTTP_405_METHOD_NOT_ALLOWED])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class OrderAPITestCase(APITestCase):
@@ -317,14 +317,14 @@ class OrderAPITestCase(APITestCase):
             'shipping_address': {}
         }
         response = self.client.post('/api/orders/', order_data, format='json')
-        self.assertIn(response.status_code, [status.HTTP_201_CREATED, status.HTTP_400_BAD_REQUEST])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_update_order_status_api(self):
         """Test updating order status"""
         self.client.force_authenticate(user=self.store_owner)
         update_data = {'status': 'paid'}
         response = self.client.patch(f'/api/orders/{self.order.id}/', update_data)
-        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class WishlistAPITestCase(APITestCase):
@@ -383,7 +383,7 @@ class WishlistAPITestCase(APITestCase):
         self.client.force_authenticate(user=self.customer)
         add_data = {'product_id': str(self.product1.id)}
         response = self.client.post('/api/wishlists/add-product/', add_data, format='json')
-        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST, status.HTTP_405_METHOD_NOT_ALLOWED])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_remove_from_wishlist_api(self):
         """Test removing product from wishlist"""
@@ -394,13 +394,13 @@ class WishlistAPITestCase(APITestCase):
         # Then remove
         remove_data = {'product_id': str(self.product1.id)}
         response = self.client.post('/api/wishlists/remove-product/', remove_data, format='json')
-        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST, status.HTTP_405_METHOD_NOT_ALLOWED])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_clear_wishlist_api(self):
         """Test clearing wishlist"""
         self.client.force_authenticate(user=self.customer)
         response = self.client.post('/api/wishlists/clear/', format='json')
-        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST, status.HTTP_405_METHOD_NOT_ALLOWED])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class CommentAPITestCase(APITestCase):
@@ -461,7 +461,7 @@ class CommentAPITestCase(APITestCase):
             'content': 'Nice product!'
         }
         response = self.client.post('/api/comments/', comment_data, format='json')
-        self.assertIn(response.status_code, [status.HTTP_201_CREATED, status.HTTP_400_BAD_REQUEST])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_reply_to_comment_api(self):
         """Test replying to comment"""
@@ -472,14 +472,14 @@ class CommentAPITestCase(APITestCase):
             'parent': str(self.comment.id)
         }
         response = self.client.post('/api/comments/', reply_data, format='json')
-        self.assertIn(response.status_code, [status.HTTP_201_CREATED, status.HTTP_400_BAD_REQUEST])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_update_comment_api(self):
         """Test updating comment via API"""
         self.client.force_authenticate(user=self.customer)
         update_data = {'content': 'Updated comment'}
         response = self.client.patch(f'/api/comments/{self.comment.id}/', update_data, format='json')
-        self.assertIn(response.status_code, [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_delete_comment_api(self):
         """Test deleting comment via API"""
@@ -490,7 +490,7 @@ class CommentAPITestCase(APITestCase):
         )
         self.client.force_authenticate(user=self.customer)
         response = self.client.delete(f'/api/comments/{comment_to_delete.id}/')
-        self.assertIn(response.status_code, [status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN])
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
 
 class ProductRatingAPITestCase(APITestCase):
@@ -533,11 +533,14 @@ class ProductRatingAPITestCase(APITestCase):
             'rating': 4.5
         }
         response = self.client.post(f'/api/products/{self.product.id}/rate/', rating_data, format='json')
-        self.assertIn(response.status_code, [status.HTTP_201_CREATED, status.HTTP_400_BAD_REQUEST])
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
 class CategoryAPITestCase(APITestCase):
     """Test Category API endpoints"""
+    
+    def setUp(self):
+        self.client = APIClient()
     
     def test_list_categories_api(self):
         """Test listing categories via API"""
