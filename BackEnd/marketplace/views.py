@@ -809,7 +809,7 @@ class WishlistViewSet(viewsets.GenericViewSet):
         if serializer.is_valid():
             product_id = serializer.validated_data['product_id']
             result = wishlist.add_product(product_id)
-            return Response(result, status=status.HTTP_200_OK if not result.get('added') else status.HTTP_201_CREATED)
+            return Response(result, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='remove-product')
@@ -1094,14 +1094,69 @@ class CartViewSet(viewsets.ModelViewSet):
             cart.save()
             return Response({
                 'detail': 'Item quantity updated successfully',
-            })
+            }, status=status.HTTP_200_OK)
         else:
             # Add new item
             cart.items.append(validated_item)
             cart.save()
             return Response({
                 'detail': 'Item added to cart successfully',
-            })
+            }, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='add-item')
+    def add_item_no_pk(self, request):
+        """Add an item to the cart (for authenticated users - uses their cart)"""
+        # Get the authenticated user's cart
+        if not request.user.is_authenticated or not hasattr(request.user, 'user_type') or request.user.user_type != 'customer':
+            return Response(
+                {'detail': 'Only customers can manage their cart'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            customer = Customer.objects.get(id=request.user.id)
+            cart, created = Cart.objects.get_or_create(user_id=customer)
+        except Customer.DoesNotExist:
+            return Response(
+                {'detail': 'Customer not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Validate item data
+        item_data = request.data
+        if not item_data:
+            return Response(
+                {'detail': 'Item data is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        item_serializer = CartItemSerializer(data=item_data)
+        if not item_serializer.is_valid():
+            return Response(item_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        validated_item = item_serializer.validated_data
+
+        # Check if item already exists in cart
+        existing_item = None
+        for item in cart.items:
+            if item['product_id'] == validated_item['product_id']:
+                existing_item = item
+                break
+
+        if existing_item:
+            # Update quantity
+            existing_item['quantity'] += validated_item['quantity']
+            cart.save()
+            return Response({
+                'detail': 'Item quantity updated successfully',
+            }, status=status.HTTP_200_OK)
+        else:
+            # Add new item
+            cart.items.append(validated_item)
+            cart.save()
+            return Response({
+                'detail': 'Item added to cart successfully',
+            }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['put', 'patch'], url_path=r'update-item/(?P<product_id>[^/]+)')
     def update_item(self, request, pk=None, product_id=None):
@@ -1145,11 +1200,50 @@ class CartViewSet(viewsets.ModelViewSet):
             'item': item
         })
 
-    @action(detail=True, methods=['delete'], url_path=r'remove-item/(?P<product_id>[^/]+)')
+    @action(detail=True, methods=['delete', 'post'], url_path=r'remove-item/(?P<product_id>[^/]+)')
     def remove_item(self, request, pk=None, product_id=None):
         """Remove an item from the cart"""
         cart = self.get_object()
 
+        if not product_id:
+            return Response(
+                {'detail': 'Product ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Find and remove the item
+        original_length = len(cart.items)
+        cart.items = [item for item in cart.items if item['product_id'] != product_id]
+
+        if len(cart.items) == original_length:
+            return Response(
+                {'detail': 'Item not found in cart'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        cart.save()
+        return Response({'detail': 'Item removed from cart successfully'})
+
+    @action(detail=False, methods=['post'], url_path='remove-item')
+    def remove_item_no_pk(self, request):
+        """Remove an item from the cart (for authenticated users - gets their cart)"""
+        # Get the authenticated user's cart
+        if not request.user.is_authenticated or not hasattr(request.user, 'user_type') or request.user.user_type != 'customer':
+            return Response(
+                {'detail': 'Only customers can manage their cart'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            customer = Customer.objects.get(id=request.user.id)
+            cart = Cart.objects.get(user_id=customer)
+        except (Customer.DoesNotExist, Cart.DoesNotExist):
+            return Response(
+                {'detail': 'Cart not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        product_id = request.data.get('product_id')
         if not product_id:
             return Response(
                 {'detail': 'Product ID is required'},

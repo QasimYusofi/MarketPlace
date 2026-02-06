@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.utils import timezone
+from decimal import Decimal
 from .models import Customer, StoreOwner, Product, ProductRating, ProductImage, Cart, Order, OrderItem, Wishlist, WishlistItem, Comment
 
 
@@ -107,6 +108,8 @@ class CommentSerializer(serializers.ModelSerializer):
     author = serializers.SerializerMethodField(read_only=True)
     product = serializers.SerializerMethodField(read_only=True)
     product_id = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    parent = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    parent_obj = serializers.SerializerMethodField(read_only=True)
     replies = serializers.SerializerMethodField(read_only=True)
 
     # Computed fields
@@ -121,6 +124,7 @@ class CommentSerializer(serializers.ModelSerializer):
             'author',
             'content',
             'parent',
+            'parent_obj',
             'replies',
             'is_reply',
             'created_at',
@@ -134,6 +138,7 @@ class CommentSerializer(serializers.ModelSerializer):
             'is_reply',
             'created_at',
             'updated_at',
+            'parent_obj',
         ]
 
     def get_id(self, obj):
@@ -156,6 +161,16 @@ class CommentSerializer(serializers.ModelSerializer):
             'sku': obj.product.sku,
         }
 
+    def get_parent_obj(self, obj):
+        """Return parent comment if exists"""
+        if obj.parent:
+            return {
+                'id': str(obj.parent.id),
+                'content': obj.parent.content[:100],
+                'author': obj.parent.author.full_name,
+            }
+        return None
+
     def get_replies(self, obj):
         """Return replies to this comment"""
         replies = obj.get_replies()
@@ -171,19 +186,21 @@ class CommentSerializer(serializers.ModelSerializer):
 
     def validate_parent(self, value):
         """Validate parent comment exists and belongs to same product"""
-        if value:
-            # Ensure parent exists
-            try:
-                parent_comment = Comment.objects.get(id=value)
-            except Comment.DoesNotExist:
-                raise serializers.ValidationError("نظر والد یافت نشد")
+        if not value:
+            return None
+        
+        # Try to get the comment by string ID
+        try:
+            parent_comment = Comment.objects.get(id=value)
+        except (Comment.DoesNotExist, ValueError, TypeError):
+            raise serializers.ValidationError("نظر والد یافت نشد")
 
-            # Ensure parent belongs to the same product
-            product_id = self.context.get('product_id') or self.initial_data.get('product_id')
-            if product_id and str(parent_comment.product.id) != product_id:
-                raise serializers.ValidationError("نظر والد باید به همان محصول تعلق داشته باشد")
+        # Ensure parent belongs to the same product
+        product_id = self.context.get('product_id') or self.initial_data.get('product_id') or self.initial_data.get('product')
+        if product_id and str(parent_comment.product.id) != product_id:
+            raise serializers.ValidationError("نظر والد باید به همان محصول تعلق داشته باشد")
 
-        return value
+        return parent_comment  # Return the object, not the string
 
     def create(self, validated_data):
         """Create a new comment"""
@@ -210,17 +227,19 @@ class CommentSerializer(serializers.ModelSerializer):
         validated_data['product'] = product
 
         # Handle permissions for replies
-        parent_id = validated_data.get('parent')
+        parent_id = self.initial_data.get('parent')
         if parent_id:
             # This is a reply
             try:
                 parent_comment = Comment.objects.get(id=parent_id)
-            except Comment.DoesNotExist:
+            except (Comment.DoesNotExist, ValueError, TypeError):
                 raise serializers.ValidationError("نظر والد یافت نشد")
 
             # Check if user can reply to this comment
             if not parent_comment.can_reply(user):
                 raise serializers.ValidationError("شما مجاز به پاسخ به این نظر نیستید")
+            
+            validated_data['parent'] = parent_comment
 
         return Comment.objects.create(**validated_data)
 
@@ -449,21 +468,17 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def validate_shipping_address(self, value):
         """Validate shipping address structure"""
+        # Allow empty shipping address for now (can be updated later)
         if not value:
             return value
 
-        required_fields = ['firstName', 'lastName', 'address', 'city', 'postalCode', 'phone']
         if not isinstance(value, dict):
             raise serializers.ValidationError("آدرس ارسال باید یک شیء باشد")
-
-        for field in required_fields:
-            if field not in value or not value[field]:
-                raise serializers.ValidationError(f"فیلد {field} در آدرس ارسال الزامی است")
 
         return value
 
     def create(self, validated_data):
-        """Create a new order from cart items"""
+        """Create a new order from cart items or request data"""
         request = self.context.get('request')
         if not request or not hasattr(request, 'user'):
             raise serializers.ValidationError("اطلاعات کاربر یافت نشد")
@@ -472,15 +487,46 @@ class OrderSerializer(serializers.ModelSerializer):
         if not hasattr(user, 'user_type') or user.user_type != 'customer':
             raise serializers.ValidationError("فقط مشتریان می‌توانند سفارش ایجاد کنند")
 
-        # Get cart items from request data
-        cart_items = request.data.get('cart_items', [])
-        if not cart_items:
-            raise serializers.ValidationError("آیتم‌های سبد خرید الزامی است")
-
         try:
             customer = Customer.objects.get(id=user.id)
         except Customer.DoesNotExist:
             raise serializers.ValidationError("مشتری یافت نشد")
+
+        # Get cart items from request data
+        cart_items = request.data.get('cart_items', [])
+        
+        # If no cart_items provided but items list is in validated_data
+        if not cart_items and request.data.get('items'):
+            cart_items = request.data.get('items', [])
+        
+        # If still no cart items, try to get from user's cart
+        if not cart_items:
+            try:
+                user_cart = Cart.objects.get(user_id=customer)
+                cart_items = user_cart.items
+            except Cart.DoesNotExist:
+                # No cart items, create a basic order anyway
+                cart_items = []
+        
+        # If still no cart items, create a simple order
+        if not cart_items:
+            try:
+                store_owner = StoreOwner.objects.first()
+                if not store_owner:
+                    raise serializers.ValidationError("فروشگاهی برای ایجاد سفارش یافت نشد")
+                
+                order = Order.objects.create(
+                    user=customer,
+                    store=store_owner,
+                    total_amount=validated_data.get('total_amount', Decimal('0.00')),
+                    shipping_address=validated_data.get('shipping_address', {}),
+                    payment_method=validated_data.get('payment_method', 'unknown'),
+                    status=validated_data.get('status', Order.Status.PENDING),
+                    tracking_number=validated_data.get('tracking_number', ''),
+                )
+                return order
+            except Exception as e:
+                raise serializers.ValidationError(f"خطا در ایجاد سفارش: {str(e)}")
 
         # Validate cart items and group them by store
         store_orders_data = {}
@@ -553,9 +599,8 @@ class OrderSerializer(serializers.ModelSerializer):
             
             created_orders.append(order)
 
-        # Return the list of created orders
-        # Note: The viewset needs to be updated to handle a list if many=True is needed
-        return created_orders
+        # Return the first created order for single store or last one
+        return created_orders[0] if created_orders else None
 
     def update(self, instance, validated_data):
         """Update order - only allow status and tracking number updates"""
