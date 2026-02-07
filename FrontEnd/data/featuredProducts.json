@@ -3,7 +3,8 @@
     {
       "id": "featured-1",
       "title": "image1",
-      "img": "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
+      "img": "./p4.jpeg",
+      "imgii": "https://i.pinimg.com/736x/0a/ea/2c/0aea2ce00406e84480e552597a8bea66.jpg",
       "brand": "شهرزاد",
       "category": "لباس زنانه",
       "description": "کت چرم با کیفیت عالی و دوخت حرفه ای"
@@ -11,7 +12,8 @@
     {
       "id": "featured-3",
       "title": "image3",
-      "img": "https://i.pinimg.com/736x/b3/d4/1d/b3d41d8541a5755a5cc0f3c820a12308.jpg",
+      "img": "./p2.jpeg",
+      "img22": "https://i.pinimg.com/736x/b3/d4/1d/b3d41d8541a5755a5cc0f3c820a12308.jpg",
       "brand": "ادورا",
       "category": "کفش",
       "description": "کفش مجلسی با طراحی خاص و راحت"
@@ -19,7 +21,8 @@
     {
       "id": "featured-4",
       "title": "image4",
-      "img": "https://i.pinimg.com/736x/c4/13/fb/c413fbdc903b2837f3496567e544156f.jpg",
+      "img": "./p3.jpeg",
+      "img33": "https://i.pinimg.com/736x/c4/13/fb/c413fbdc903b2837f3496567e544156f.jpg",
       "brand": "لومیر",
       "category": "اکسسوری",
       "description": "ساعت مچی لوکس با طراحی کلاسیک"
@@ -27,7 +30,8 @@
     {
       "id": "featured-5",
       "title": "image5",
-      "img": "https://i.pinimg.com/736x/65/68/1c/65681cba0a01e4508d2c6afb5197e775.jpg",
+      "img": "./p1.jpeg",
+      "img44": "https://i.pinimg.com/736x/65/68/1c/65681cba0a01e4508d2c6afb5197e775.jpg",
       "brand": "لومیر",
       "category": "اکسسوری",
       "description": "ساعت مچی لوکس با طراحی کلاسیک"

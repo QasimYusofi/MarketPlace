@@ -601,6 +601,19 @@ class CommentViewSet(viewsets.ModelViewSet):
     queryset = Comment.objects.all().order_by('-created_at')
     serializer_class = CommentSerializer
 
+    def get_permissions(self):
+        """Set permissions based on action"""
+        if self.action in ['list', 'retrieve']:
+            # Anyone can view comments
+            return [permissions.AllowAny()]
+        if self.action in ['create']:
+            # Only authenticated users can create comments
+            return [permissions.IsAuthenticated()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            # Only comment author can update their own comments
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated()]
+    
     def get_queryset(self):
         """Filter comments - everyone can see comments, but filtered by product"""
         queryset = Comment.objects.all()
@@ -616,18 +629,7 @@ class CommentViewSet(viewsets.ModelViewSet):
 
         return queryset.order_by('-created_at')
 
-    def get_permissions(self):
-        """Set permissions based on action"""
-        if self.action in ['list', 'retrieve']:
-            # Anyone can view comments
-            return [permissions.AllowAny()]
-        if self.action in ['create']:
-            # Only authenticated users can create comments
-            return [permissions.IsAuthenticated()]
-        if self.action in ['update', 'partial_update', 'destroy']:
-            # Only comment author can update their own comments
-            return [permissions.IsAuthenticated()]
-        return [permissions.IsAuthenticated()]
+
 
     def get_serializer_context(self):
         """Add product_id to serializer context"""

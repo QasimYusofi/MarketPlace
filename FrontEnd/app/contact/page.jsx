@@ -224,16 +224,13 @@ export default function Contact() {
 
         {/* Features */}
         <div className="flex justify-center mb-12">
-          <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-200">
-            <div className="flex space-x-8 space-x-reverse">
+          <div className="bg-white rounded-2xl p-4 shadow-lg border border-gray-200 w-full">
+            <div className="flex  justify-around">
               {features.map((feature, index) => {
                 const IconComponent = feature.icon;
                 return (
-                  <div
-                    key={index}
-                    className="flex items-center space-x-3 space-x-reverse"
-                  >
-                    <div className={`p-2 rounded-lg ${feature.bg}`}>
+                  <div key={index} className="flex items-center">
+                    <div className={`p-2 mx-2 rounded-lg ${feature.bg}`}>
                       <IconComponent className={`h-5 w-5 ${feature.color}`} />
                     </div>
                     <span className="text-gray-700 font-medium">
@@ -270,7 +267,7 @@ export default function Contact() {
 
                   <div className="flex items-start space-x-4 space-x-reverse">
                     <div
-                      className={`p-4 rounded-2xl ${method.bgColor} group-hover:scale-110 transition-transform duration-300 shadow-lg`}
+                      className={`p-4 mx-3 rounded-2xl ${method.bgColor} group-hover:scale-110 transition-transform duration-300 shadow-lg`}
                     >
                       <IconComponent className="h-6 w-6 text-white" />
                     </div>

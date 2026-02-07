@@ -161,8 +161,7 @@ export default function Products() {
     const storeName = currentStore.store_name || "STORE";
     const year = new Date().getFullYear();
 
-    const productListLength = Number(products.length) + 1;
-    console.log(productListLength);
+    const productListLength = new Date().getUTCHours();
 
     // Clean store name (remove spaces and special characters, take first 4 chars)
     const cleanStoreName = storeName

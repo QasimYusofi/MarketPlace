@@ -29,6 +29,8 @@ import {
   Plus,
   Minus,
   TrendingDown,
+  Reply,
+  Send,
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -71,6 +73,7 @@ const ProductDetailPage = () => {
   const [selectedSize, setSelectedSize] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
+
   const [addingToWishlist, setAddingToWishlist] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [imageZoom, setImageZoom] = useState(false);
@@ -86,6 +89,9 @@ const ProductDetailPage = () => {
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [user, setUser] = useState(null);
+  const [replyingToComment, setReplyingToComment] = useState(null);
+  const [replyContent, setReplyContent] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
   const getAuthToken = () => {
     if (typeof window !== "undefined") {
@@ -101,7 +107,7 @@ const ProductDetailPage = () => {
       return;
     }
     try {
-      const response = await fetch(`${API_BASE_URL}/users/me/`, {
+      let response = await fetch(`${API_BASE_URL}/users/me/`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -111,8 +117,19 @@ const ProductDetailPage = () => {
         const userData = await response.json();
         setUser(userData);
       } else {
-        setUser(null);
-        localStorage.removeItem("accessToken");
+        response = await fetch(`${API_BASE_URL}/store-owners/me/`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        } else {
+          setUser(null);
+          localStorage.removeItem("accessToken");
+        }
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
@@ -259,14 +276,11 @@ const ProductDetailPage = () => {
 
   const fetchStoreOwnerDetails = async (storeOwnerId) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/store-owners/${storeOwnerId}/`,
-        {
-          headers: {
-            Authorization: `Bearer ${getAuthToken() || ""}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/store-owners/me/`, {
+        headers: {
+          Authorization: `Bearer ${getAuthToken() || ""}`,
+        },
+      });
 
       if (response.ok) {
         const storeData = await response.json();
@@ -310,18 +324,22 @@ const ProductDetailPage = () => {
 
   const fetchComments = async () => {
     try {
-      let response = await fetch(
-        `${API_BASE_URL}/comments/?product=${productId}`
-      );
+      // Check authentication
+      const token = getAuthToken();
 
-      if (!response.ok) {
-        response = await fetch(
-          `${API_BASE_URL}/comments/product/${productId}/`
-        );
-      }
+      let response = await fetch(
+        `${API_BASE_URL}/comments/product/${productId}/`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (response.ok) {
         const commentsData = await response.json();
+        console.log(commentsData);
+
         let commentsArray = [];
         if (Array.isArray(commentsData)) {
           commentsArray = commentsData;
@@ -344,6 +362,7 @@ const ProductDetailPage = () => {
           return dateB - dateA;
         });
 
+        console.log(commentsArray);
         setComments(commentsArray);
       } else {
         setComments([]);
@@ -453,6 +472,7 @@ const ProductDetailPage = () => {
         : `${API_BASE_URL}/wishlists/me/add/`;
 
       const method = isLiked ? "DELETE" : "POST";
+      console.log(endpoint);
       const body = isLiked
         ? null
         : JSON.stringify({
@@ -518,7 +538,7 @@ const ProductDetailPage = () => {
         content: newComment.trim(),
       };
 
-      console.log(commentData)
+      console.log(commentData);
       const response = await fetch(`${API_BASE_URL}/comments/`, {
         method: "POST",
         headers: {
@@ -529,7 +549,7 @@ const ProductDetailPage = () => {
       });
 
       const data = await response.json();
-      console.log(data)
+      console.log(data);
 
       if (response.ok) {
         toast.success("نظر شما با موفقیت ثبت شد");
@@ -624,14 +644,39 @@ const ProductDetailPage = () => {
     }
   };
 
-  // --- FIXED: Handle reply to comment ---
-  const handleReplyToComment = async (commentId, replyContent) => {
+  // --- NEW: Start replying to a comment ---
+  const handleStartReply = (commentId) => {
     const token = getAuthToken();
     if (!token) {
       setShowLoginModal(true);
       toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
       return;
     }
+    setReplyingToComment(commentId);
+    setReplyContent("");
+  };
+
+  // --- NEW: Cancel reply ---
+  const handleCancelReply = () => {
+    setReplyingToComment(null);
+    setReplyContent("");
+  };
+
+  // --- FIXED: Handle reply to comment ---
+  const handleReplyToComment = async (commentId) => {
+    const token = getAuthToken();
+    if (!token) {
+      setShowLoginModal(true);
+      toast.error("لطفا ابتدا وارد حساب کاربری خود شوید");
+      return;
+    }
+
+    if (!replyContent.trim()) {
+      toast.error("لطفا متن پاسخ خود را وارد کنید");
+      return;
+    }
+
+    setSendingReply(true);
 
     try {
       const response = await fetch(
@@ -648,15 +693,27 @@ const ProductDetailPage = () => {
 
       const data = await response.json();
 
+      console.log(data);
       if (response.ok) {
-        toast.success("پاسخ شما ثبت شد");
+        toast.success("پاسخ شما با موفقیت ثبت شد");
+        setReplyingToComment(null);
+        setReplyContent("");
         fetchComments(); // Refresh comments
       } else {
-        toast.error(data.detail || "خطا در ثبت پاسخ");
+        let errorMsg = data.detail || "خطا در ثبت پاسخ";
+
+        // Check if user has permission to reply
+        if (response.status === 403) {
+          errorMsg = "فقط صاحب فروشگاه می‌تواند به نظرات پاسخ دهد";
+        }
+
+        toast.error(errorMsg);
       }
     } catch (error) {
       console.error("Error replying to comment:", error);
       toast.error("خطا در ارتباط با سرور");
+    } finally {
+      setSendingReply(false);
     }
   };
 
@@ -856,21 +913,10 @@ const ProductDetailPage = () => {
                   <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-xs font-medium">
                     {product.category || "دسته‌بندی"}
                   </span>
-                  <div className="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-1 rounded-lg">
-                    <Star className="w-3 h-3 fill-current" />
-                    <span className="text-xs font-medium">
-                      {product.rating?.average?.toFixed(1) ||
-                        product.average_rating?.toFixed(1) ||
-                        "۰"}
-                    </span>
-                  </div>
                 </div>
                 <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
                   {product.title}
                 </h1>
-                <p className="text-gray-600 text-sm">
-                  {product.description?.substring(0, 150)}...
-                </p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -1214,18 +1260,6 @@ const ProductDetailPage = () => {
                   )}
                   {addingToWishlist ? "" : isLiked ? "" : "علاقه‌مندی"}
                 </button>
-
-                {ownerStore && (
-                  <button
-                    onClick={() =>
-                      router.push(`/stores/${ownerStore.id || ownerStore._id}`)
-                    }
-                    className="px-6 py-4 border-2 border-gray-300 rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                  >
-                    <Store className="w-5 h-5 text-gray-700" />
-                    <span className="font-medium">فروشگاه</span>
-                  </button>
-                )}
               </div>
 
               {/* Features */}
@@ -1466,13 +1500,13 @@ const ProductDetailPage = () => {
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
                                   {comment.user?.first_name?.[0] ||
-                                    comment.author?.first_name?.[0] ||
+                                    comment.author?.full_name?.[0] ||
                                     "ن"}
                                 </div>
                                 <div>
                                   <h4 className="font-bold text-gray-900">
                                     {comment.user?.first_name ||
-                                      comment.author?.first_name ||
+                                      comment.author?.full_name ||
                                       "کاربر"}{" "}
                                     {comment.user?.last_name ||
                                       comment.author?.last_name ||
@@ -1503,14 +1537,81 @@ const ProductDetailPage = () => {
                                   </div>
                                 </div>
                               </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() =>
+                                    handleStartReply(comment.id || comment._id)
+                                  }
+                                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                  title="پاسخ به این نظر"
+                                >
+                                  <Reply className="w-4 h-4 text-gray-600" />
+                                </button>
+                                <button className="p-2 hover:bg-gray-100 rounded-lg">
+                                  <ThumbsUp className="w-4 h-4 text-gray-600" />
+                                </button>
+                              </div>
                             </div>
                             <p className="text-gray-700 leading-relaxed mb-4">
                               {comment.content || comment.text}
                             </p>
 
+                            {/* Reply Input Section */}
+                            {replyingToComment ===
+                              (comment.id || comment._id) && (
+                              <div className="mt-4 mr-8 border-r-2 border-blue-100 pr-4">
+                                <div className="bg-blue-50 rounded-xl p-4">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs">
+                                      {comment.author?.full_name?.[0] || "ش"}
+                                    </div>
+                                    <span className="font-medium text-blue-700">
+                                      شما در حال پاسخ به این نظر هستید
+                                    </span>
+                                  </div>
+                                  <textarea
+                                    value={replyContent}
+                                    onChange={(e) =>
+                                      setReplyContent(e.target.value)
+                                    }
+                                    placeholder="پاسخ خود را بنویسید..."
+                                    className="w-full h-24 p-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-white"
+                                    disabled={sendingReply}
+                                  />
+                                  <div className="flex justify-end gap-2 mt-3">
+                                    <button
+                                      onClick={handleCancelReply}
+                                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                                      disabled={sendingReply}
+                                    >
+                                      لغو
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleReplyToComment(
+                                          comment.id || comment._id
+                                        )
+                                      }
+                                      disabled={
+                                        sendingReply || !replyContent.trim()
+                                      }
+                                      className="bg-blue-600 text-white px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    >
+                                      {sendingReply ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Send className="w-4 h-4" />
+                                      )}
+                                      ارسال پاسخ
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             {/* Replies Section */}
                             {comment.replies && comment.replies.length > 0 && (
-                              <div className="mr-8 border-r-2 border-blue-100 pr-4">
+                              <div className="mr-8 border-r-2 border-blue-100 pr-4 mt-4">
                                 <div className="space-y-4">
                                   {comment.replies.map((reply, index) => (
                                     <div
@@ -1519,10 +1620,13 @@ const ProductDetailPage = () => {
                                     >
                                       <div className="flex items-center gap-2 mb-2">
                                         <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs">
-                                          {reply.user?.first_name?.[0] || "پ"}
+                                          {reply.user?.first_name?.[0] ||
+                                            reply.author?.first_name?.[0] ||
+                                            "پ"}
                                         </div>
                                         <span className="font-medium text-blue-700">
                                           {reply.user?.first_name ||
+                                            reply.author?.first_name ||
                                             "پاسخ‌دهنده"}
                                         </span>
                                         <span className="text-xs text-gray-500">
