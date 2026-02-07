@@ -731,6 +731,8 @@ class WishlistViewSet(viewsets.GenericViewSet):
     """ViewSet for Wishlist operations"""
     queryset = Wishlist.objects.all().order_by('-created_at')
     serializer_class = WishlistSerializer
+    lookup_field = 'pk'
+    lookup_value_regex = r'[^/]+'  # Allow any characters including 'me'
 
     def get_queryset(self):
         """Filter wishlists - customers can only see their own wishlist, admins can see all"""
@@ -786,7 +788,7 @@ class WishlistViewSet(viewsets.GenericViewSet):
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
-    @action(detail=False, methods=['post'], url_path='add-product')
+    @action(detail=True, methods=['post'], url_path='add')
     def add_product(self, request, pk=None):
         """Add a product to the wishlist"""
         # Get the authenticated user's wishlist
@@ -812,7 +814,7 @@ class WishlistViewSet(viewsets.GenericViewSet):
             return Response(result, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=['post'], url_path='remove-product')
+    @action(detail=True, methods=['delete'], url_path='remove')
     def remove_product(self, request, pk=None, product_id=None):
         """Remove a product from the wishlist"""
         # Get the authenticated user's wishlist
@@ -844,7 +846,7 @@ class WishlistViewSet(viewsets.GenericViewSet):
         status_code = status.HTTP_200_OK if result['removed'] else status.HTTP_404_NOT_FOUND
         return Response(result, status=status_code)
 
-    @action(detail=False, methods=['post'], url_path='clear')
+    @action(detail=True, methods=['delete'], url_path='clear')
     def clear(self, request, pk=None):
         """Clear all products from the wishlist"""
         # Get the authenticated user's wishlist
