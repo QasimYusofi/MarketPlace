@@ -21,25 +21,28 @@ import {
   Calendar,
   CreditCard,
   MapPin,
-  Store,
-  User,
+  Edit,
+  MoreVertical,
+  Copy,
+  Trash2,
+  Save,
+  X,
+  Mail,
   Phone,
   ShoppingBag,
   ChevronLeft,
   ChevronRight,
-  Edit,
-  MoreVertical,
-  Copy,
-  ExternalLink,
-  Receipt,
-  Shield,
-  TrendingUp,
+  User,
   DollarSign,
+  TrendingUp,
+  Store,
+  MessageSquare,
+  Hash,
+  AlertTriangle,
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 const MEDIA_BASE_URL = "http://127.0.0.1:8000";
 
 // Utility functions
@@ -52,10 +55,8 @@ const getAuthToken = () => {
 
 const formatPrice = (price) => {
   if (!price && price !== 0) return "۰ تومان";
-  return (
-    new Intl.NumberFormat("fa-IR").format(Math.round(parseFloat(price) || 0)) +
-    " تومان"
-  );
+  const numPrice = parseFloat(price) || 0;
+  return new Intl.NumberFormat("fa-IR").format(numPrice) + " تومان";
 };
 
 const formatDate = (dateString) => {
@@ -68,17 +69,6 @@ const formatDate = (dateString) => {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
-};
-
-const getPersianDate = (dateString) => {
-  if (!dateString) return "—";
-  const date = new Date(dateString);
-  const persianDate = new Intl.DateTimeFormat("fa-IR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(date);
-  return persianDate;
 };
 
 const getRelativeTime = (dateString) => {
@@ -97,7 +87,7 @@ const getRelativeTime = (dateString) => {
   } else if (diffDays < 30) {
     return `${diffDays} روز قبل`;
   } else {
-    return getPersianDate(dateString);
+    return formatDate(dateString);
   }
 };
 
@@ -105,11 +95,9 @@ const getOrderStatus = (status) => {
   const statusMap = {
     pending: "در انتظار پرداخت",
     paid: "پرداخت شده",
-    processing: "در حال پردازش",
     shipped: "ارسال شده",
     delivered: "تحویل داده شده",
     cancelled: "لغو شده",
-    refunded: "مرجوع شده",
   };
   return statusMap[status] || status;
 };
@@ -118,11 +106,9 @@ const getStatusColor = (status) => {
   const colorMap = {
     pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
     paid: "bg-blue-100 text-blue-800 border-blue-200",
-    processing: "bg-indigo-100 text-indigo-800 border-indigo-200",
     shipped: "bg-purple-100 text-purple-800 border-purple-200",
     delivered: "bg-green-100 text-green-800 border-green-200",
     cancelled: "bg-red-100 text-red-800 border-red-200",
-    refunded: "bg-gray-100 text-gray-800 border-gray-200",
   };
   return colorMap[status] || "bg-gray-100 text-gray-800 border-gray-200";
 };
@@ -131,11 +117,9 @@ const getStatusIcon = (status) => {
   const iconMap = {
     pending: Clock,
     paid: CreditCard,
-    processing: Clock,
     shipped: Truck,
     delivered: CheckCircle,
     cancelled: XCircle,
-    refunded: AlertCircle,
   };
   return iconMap[status] || Package;
 };
@@ -153,51 +137,17 @@ const statusFilters = [
   { id: "all", label: "همه سفارشات", status: null },
   { id: "pending", label: "در انتظار پرداخت", status: "pending" },
   { id: "paid", label: "پرداخت شده", status: "paid" },
-  { id: "processing", label: "در حال پردازش", status: "processing" },
   { id: "shipped", label: "ارسال شده", status: "shipped" },
   { id: "delivered", label: "تحویل داده شده", status: "delivered" },
   { id: "cancelled", label: "لغو شده", status: "cancelled" },
 ];
 
-// Status update options for dropdown
-const statusUpdateOptions = {
-  pending: [
-    {
-      value: "paid",
-      label: "علامت‌گذاری به عنوان پرداخت شده",
-      color: "text-blue-600",
-    },
-    { value: "cancelled", label: "لغو سفارش", color: "text-red-600" },
-  ],
-  paid: [
-    { value: "processing", label: "شروع پردازش", color: "text-indigo-600" },
-    { value: "cancelled", label: "لغو سفارش", color: "text-red-600" },
-  ],
-  processing: [
-    {
-      value: "shipped",
-      label: "علامت‌گذاری به عنوان ارسال شده",
-      color: "text-purple-600",
-    },
-    { value: "cancelled", label: "لغو سفارش", color: "text-red-600" },
-  ],
-  shipped: [
-    {
-      value: "delivered",
-      label: "علامت‌گذاری به عنوان تحویل داده شده",
-      color: "text-green-600",
-    },
-  ],
-  delivered: [
-    {
-      value: "refunded",
-      label: "علامت‌گذاری به عنوان مرجوع شده",
-      color: "text-gray-600",
-    },
-  ],
-  cancelled: [],
-  refunded: [],
-};
+// Payment method options
+const paymentMethods = [
+  { value: "online", label: "پرداخت آنلاین" },
+  { value: "cash", label: "پرداخت در محل" },
+  { value: "bank_transfer", label: "کارت به کارت" },
+];
 
 export default function StoreOwnerOrdersPage() {
   const router = useRouter();
@@ -206,14 +156,11 @@ export default function StoreOwnerOrdersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [totalOrders, setTotalOrders] = useState(0);
-  const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderStats, setOrderStats] = useState({
     total: 0,
     pending: 0,
     paid: 0,
-    processing: 0,
     shipped: 0,
     delivered: 0,
     cancelled: 0,
@@ -223,6 +170,25 @@ export default function StoreOwnerOrdersPage() {
   const [showStatusDropdown, setShowStatusDropdown] = useState(null);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [showTrackingModal, setShowTrackingModal] = useState(null);
+
+  // Edit modal states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingOrder, setEditingOrder] = useState(null);
+  const [editForm, setEditForm] = useState({
+    status: "",
+    tracking_number: "",
+    payment_method: "",
+    shipping_address: {
+      firstName: "",
+      lastName: "",
+      address: "",
+      city: "",
+      postalCode: "",
+      phone: "",
+      note: "",
+    },
+  });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
   // Fetch orders from API
   const fetchOrders = useCallback(async () => {
@@ -260,23 +226,22 @@ export default function StoreOwnerOrdersPage() {
       const data = await response.json();
       console.log("Store orders data received:", data);
 
-      // Handle both array and paginated response
-      let ordersData = Array.isArray(data)
-        ? data
-        : data.results || data.orders || [];
+      // Handle array response
+      let ordersData = Array.isArray(data) ? data : [];
 
       // Apply filters
+      let filteredOrders = ordersData;
       if (statusFilter !== "all") {
         const statusObj = statusFilters.find((f) => f.id === statusFilter);
         if (statusObj?.status) {
-          ordersData = ordersData.filter(
+          filteredOrders = ordersData.filter(
             (order) => order.status === statusObj.status
           );
         }
       }
 
       if (searchQuery) {
-        ordersData = ordersData.filter(
+        filteredOrders = filteredOrders.filter(
           (order) =>
             order.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             order.tracking_number
@@ -285,13 +250,15 @@ export default function StoreOwnerOrdersPage() {
             order.user?.full_name
               ?.toLowerCase()
               .includes(searchQuery.toLowerCase()) ||
-            order.user?.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+            order.shipping_address?.phone
+              ?.toLowerCase()
+              .includes(searchQuery.toLowerCase())
         );
       }
 
-      setOrders(ordersData);
-      setTotalOrders(ordersData.length);
-      setTotalPages(1);
+      setOrders(filteredOrders);
+      setTotalOrders(filteredOrders.length);
+      calculateOrderStats(ordersData);
     } catch (error) {
       console.error("Error fetching store orders:", error);
       toast.error("خطا در دریافت سفارشات");
@@ -306,7 +273,6 @@ export default function StoreOwnerOrdersPage() {
       total: ordersList.length,
       pending: ordersList.filter((o) => o.status === "pending").length,
       paid: ordersList.filter((o) => o.status === "paid").length,
-      processing: ordersList.filter((o) => o.status === "processing").length,
       shipped: ordersList.filter((o) => o.status === "shipped").length,
       delivered: ordersList.filter((o) => o.status === "delivered").length,
       cancelled: ordersList.filter((o) => o.status === "cancelled").length,
@@ -318,7 +284,7 @@ export default function StoreOwnerOrdersPage() {
     setOrderStats(stats);
   }, []);
 
-  // Update order status
+  // Update order status via dedicated endpoint
   const handleUpdateStatus = async (orderId, newStatus) => {
     const token = getAuthToken();
     if (!token) return;
@@ -396,10 +362,150 @@ export default function StoreOwnerOrdersPage() {
     }
   };
 
+  // Open edit modal
+  const handleEditClick = (order) => {
+    setEditingOrder(order);
+    setEditForm({
+      status: order.status,
+      tracking_number: order.tracking_number || "",
+      payment_method: order.payment_method,
+      shipping_address: {
+        firstName: order.shipping_address?.firstName || "",
+        lastName: order.shipping_address?.lastName || "",
+        address: order.shipping_address?.address || "",
+        city: order.shipping_address?.city || "",
+        postalCode: order.shipping_address?.postalCode || "",
+        phone: order.shipping_address?.phone || "",
+        note: order.shipping_address?.note || "",
+      },
+    });
+    setShowEditModal(true);
+  };
+
+  // Handle edit form changes
+  const handleEditChange = (field, value) => {
+    if (field.includes(".")) {
+      const [parent, child] = field.split(".");
+      setEditForm((prev) => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent],
+          [child]: value,
+        },
+      }));
+    } else {
+      setEditForm((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    }
+  };
+
+  // Update order (PUT - full update)
+  const handleUpdateOrder = async (orderId) => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+      setUpdatingOrder(orderId);
+
+      const response = await fetch(`${API_BASE_URL}/orders/${orderId}/`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(editForm),
+      });
+
+      if (response.ok) {
+        await fetchOrders();
+        setShowEditModal(false);
+        setEditingOrder(null);
+        toast.success("سفارش با موفقیت به‌روزرسانی شد");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.detail || "خطا در به‌روزرسانی سفارش");
+      }
+    } catch (error) {
+      console.error("Error updating order:", error);
+      toast.error("خطا در ارتباط با سرور");
+    } finally {
+      setUpdatingOrder(null);
+    }
+  };
+
+  // Partial update order (PATCH)
+  const handlePartialUpdate = async (orderId, data) => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+      setUpdatingOrder(orderId);
+
+      const response = await fetch(`${API_BASE_URL}orders/${orderId}/`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        await fetchOrders();
+        toast.success("سفارش با موفقیت به‌روزرسانی شد");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.detail || "خطا در به‌روزرسانی سفارش");
+      }
+    } catch (error) {
+      console.error("Error updating order:", error);
+      toast.error("خطا در ارتباط با سرور");
+    } finally {
+      setUpdatingOrder(null);
+    }
+  };
+
+  // Delete order
+  const handleDeleteOrder = async (orderId) => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+      setUpdatingOrder(orderId);
+
+      const response = await fetch(`${API_BASE_URL}/orders/${orderId}/`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        await fetchOrders();
+        setShowDeleteConfirm(null);
+        toast.success("سفارش با موفقیت حذف شد");
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.detail || "خطا در حذف سفارش");
+      }
+    } catch (error) {
+      console.error("Error deleting order:", error);
+      toast.error("خطا در ارتباط با سرور");
+    } finally {
+      setUpdatingOrder(null);
+    }
+  };
+
+  // Cancel order
+  const handleCancelOrder = async (orderId) => {
+    await handleUpdateStatus(orderId, "cancelled");
+  };
+
   // Handle search
   const handleSearch = (e) => {
     setSearchQuery(e.target.value);
-    setCurrentPage(1);
   };
 
   const handleSearchSubmit = (e) => {
@@ -410,54 +516,11 @@ export default function StoreOwnerOrdersPage() {
   // Handle filter change
   const handleFilterChange = (filterId) => {
     setStatusFilter(filterId);
-    setCurrentPage(1);
-  };
-
-  // Handle page change
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
   };
 
   // Handle refresh
   const handleRefresh = () => {
     fetchOrders();
-  };
-
-  // Download invoice
-  const handleDownloadInvoice = async (orderId) => {
-    const token = getAuthToken();
-    try {
-      toast.loading("در حال دریافت فاکتور...");
-      const response = await fetch(
-        `${API_BASE_URL}/orders/${orderId}/invoice/`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `invoice-${orderId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        toast.dismiss();
-        toast.success("فاکتور با موفقیت دانلود شد");
-      } else {
-        toast.dismiss();
-        toast.error("خطا در دریافت فاکتور");
-      }
-    } catch (error) {
-      console.error("Error downloading invoice:", error);
-      toast.dismiss();
-      toast.error("خطا در دریافت فاکتور");
-    }
   };
 
   // Copy to clipboard
@@ -485,14 +548,46 @@ export default function StoreOwnerOrdersPage() {
     return null;
   };
 
+  // Status update options for dropdown
+  const getStatusUpdateOptions = (currentStatus) => {
+    const options = {
+      pending: [
+        {
+          value: "paid",
+          label: "علامت‌گذاری به عنوان پرداخت شده",
+          color: "text-blue-600",
+        },
+        { value: "cancelled", label: "لغو سفارش", color: "text-red-600" },
+      ],
+      paid: [
+        { value: "shipped", label: "شروع ارسال", color: "text-purple-600" },
+        { value: "cancelled", label: "لغو سفارش", color: "text-red-600" },
+      ],
+      shipped: [
+        {
+          value: "delivered",
+          label: "تحویل داده شده",
+          color: "text-green-600",
+        },
+      ],
+      delivered: [],
+      cancelled: [],
+    };
+    return options[currentStatus] || [];
+  };
+
+  // Get store info from first order (assuming all orders belong to same store)
+  const getStoreInfo = () => {
+    if (orders.length > 0 && orders[0].store) {
+      return orders[0].store;
+    }
+    return null;
+  };
+
   // Initialize
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
-
-  useEffect(() => {
-    calculateOrderStats(orders);
-  }, [orders, calculateOrderStats]);
 
   // Loading state
   if (loading && !orders.length) {
@@ -529,6 +624,8 @@ export default function StoreOwnerOrdersPage() {
     );
   }
 
+  const storeInfo = getStoreInfo();
+
   return (
     <>
       <Toaster
@@ -553,13 +650,16 @@ export default function StoreOwnerOrdersPage() {
               مدیریت سفارشات فروشگاه
             </h1>
             <p className="text-gray-600 mt-1">
-              مشاهده و مدیریت تمام سفارشات مشتریان
+              {storeInfo
+                ? `فروشگاه: ${storeInfo.store_name}`
+                : "مشاهده و مدیریت تمام سفارشات مشتریان"}
             </p>
           </div>
           <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
             <button
               onClick={handleRefresh}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center"
+              disabled={loading}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center disabled:opacity-50"
             >
               <RefreshCw
                 className={`w-4 h-4 ml-2 ${loading ? "animate-spin" : ""}`}
@@ -592,7 +692,7 @@ export default function StoreOwnerOrdersPage() {
                   {orderStats.delivered}
                 </p>
                 <p className="text-xs opacity-75 mt-1">
-                  {orderStats.delivered > 0
+                  {orderStats.delivered > 0 && orderStats.total > 0
                     ? `${Math.round(
                         (orderStats.delivered / orderStats.total) * 100
                       )}%`
@@ -618,13 +718,8 @@ export default function StoreOwnerOrdersPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm opacity-90">در حال ارسال</p>
-                <p className="text-2xl font-bold mt-1">
-                  {orderStats.shipped + orderStats.processing}
-                </p>
-                <p className="text-xs opacity-75 mt-1">
-                  {orderStats.processing > 0 &&
-                    `${orderStats.processing} در پردازش`}
-                </p>
+                <p className="text-2xl font-bold mt-1">{orderStats.shipped}</p>
+                <p className="text-xs opacity-75 mt-1">کد رهگیری اضافه کنید</p>
               </div>
               <Truck className="w-8 h-8 opacity-80" />
             </div>
@@ -637,7 +732,7 @@ export default function StoreOwnerOrdersPage() {
                   {orderStats.cancelled}
                 </p>
                 <p className="text-xs opacity-75 mt-1">
-                  {orderStats.cancelled > 0
+                  {orderStats.cancelled > 0 && orderStats.total > 0
                     ? `${Math.round(
                         (orderStats.cancelled / orderStats.total) * 100
                       )}%`
@@ -658,7 +753,7 @@ export default function StoreOwnerOrdersPage() {
                 {formatPrice(orderStats.totalRevenue)}
               </p>
               <p className="text-xs opacity-75 mt-1">
-                از {orderStats.total} سفارش موفق
+                از {orderStats.total} سفارش
               </p>
             </div>
             <div className="flex items-center space-x-2 space-x-reverse">
@@ -739,13 +834,12 @@ export default function StoreOwnerOrdersPage() {
                   const totalAmount = parseFloat(order.total_amount) || 0;
                   const user = order.user;
                   const shippingAddress = order.shipping_address;
-                  const updateOptions = statusUpdateOptions[order.status] || [];
-                  console.log(order.id);
+                  const updateOptions = getStatusUpdateOptions(order.status);
 
                   return (
                     <div
                       key={order.id}
-                      className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+                      className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
                     >
                       {/* Order Header */}
                       <div className="p-4 border-b border-gray-200 bg-gray-50">
@@ -807,9 +901,10 @@ export default function StoreOwnerOrdersPage() {
                                 <div className="absolute left-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
                                   <div className="py-1">
                                     <div className="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
-                                      تغییر وضعیت سفارش
+                                      مدیریت سفارش
                                     </div>
 
+                                    {/* Status Update Options */}
                                     {updateOptions.map((option) => (
                                       <button
                                         key={option.value}
@@ -822,8 +917,7 @@ export default function StoreOwnerOrdersPage() {
                                         disabled={updatingOrder === order.id}
                                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                                       >
-                                        {updatingOrder === order.id &&
-                                        option.value === "pending" ? (
+                                        {updatingOrder === order.id ? (
                                           <Loader2 className="w-4 h-4 ml-2 animate-spin" />
                                         ) : (
                                           <Edit
@@ -834,7 +928,9 @@ export default function StoreOwnerOrdersPage() {
                                       </button>
                                     ))}
 
-                                    {order.status === "shipped" &&
+                                    {/* Add Tracking */}
+                                    {(order.status === "shipped" ||
+                                      order.status === "paid") &&
                                       !order.tracking_number && (
                                         <button
                                           onClick={() => {
@@ -848,23 +944,56 @@ export default function StoreOwnerOrdersPage() {
                                         </button>
                                       )}
 
+                                    {/* Edit Order */}
                                     <button
-                                      onClick={() =>
-                                        handleDownloadInvoice(order.id)
-                                      }
+                                      onClick={() => handleEditClick(order)}
                                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-t border-gray-100"
                                     >
-                                      <Download className="w-4 h-4 ml-2 text-blue-600" />
-                                      دانلود فاکتور
+                                      <Edit className="w-4 h-4 ml-2 text-blue-600" />
+                                      ویرایش کامل سفارش
                                     </button>
 
+                                    {/* View Details */}
                                     <Link
-                                      href={`/orders/store-owner/${order.id}`}
+                                      href={`/store-owner/dashboard/orders/${order.id}`}
                                       className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                     >
                                       <Eye className="w-4 h-4 ml-2 text-green-600" />
                                       مشاهده جزئیات
                                     </Link>
+
+                                    {/* Cancel Order */}
+                                    {order.status !== "cancelled" &&
+                                      order.status !== "delivered" && (
+                                        <button
+                                          onClick={() => {
+                                            setShowDeleteConfirm({
+                                              id: order.id,
+                                              action: "cancel",
+                                            });
+                                            setShowStatusDropdown(null);
+                                          }}
+                                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-red-600"
+                                        >
+                                          <XCircle className="w-4 h-4 ml-2" />
+                                          لغو سفارش
+                                        </button>
+                                      )}
+
+                                    {/* Delete Order (Admin only) */}
+                                    <button
+                                      onClick={() => {
+                                        setShowDeleteConfirm({
+                                          id: order.id,
+                                          action: "delete",
+                                        });
+                                        setShowStatusDropdown(null);
+                                      }}
+                                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-t border-gray-100 text-red-600"
+                                    >
+                                      <Trash2 className="w-4 h-4 ml-2" />
+                                      حذف سفارش
+                                    </button>
                                   </div>
                                 </div>
                               )}
@@ -885,15 +1014,19 @@ export default function StoreOwnerOrdersPage() {
                                   مشتری
                                 </div>
                                 <div className="text-sm text-gray-600 mt-1">
-                                  {user?.full_name || "نامشخص"}
+                                  {user?.full_name ||
+                                    shippingAddress?.firstName +
+                                      " " +
+                                      shippingAddress?.lastName ||
+                                    "نامشخص"}
                                 </div>
-                                {user?.phone && (
+                                {shippingAddress?.phone && (
                                   <div className="text-xs text-gray-500 mt-1 flex items-center">
                                     <Phone className="w-3 h-3 ml-1" />
-                                    {user.phone}
+                                    {shippingAddress.phone}
                                     <button
                                       onClick={() =>
-                                        copyToClipboard(user.phone)
+                                        copyToClipboard(shippingAddress.phone)
                                       }
                                       className="p-1 text-gray-400 hover:text-gray-600 mr-1"
                                       title="کپی شماره"
@@ -999,9 +1132,7 @@ export default function StoreOwnerOrdersPage() {
                                     )}
                                     <div className="text-xs">
                                       <div className="font-medium text-gray-900 truncate max-w-[120px]">
-                                        {item.title ||
-                                          product?.title ||
-                                          "محصول"}
+                                        {item.title || product?.name || "محصول"}
                                       </div>
                                       <div className="text-gray-500">
                                         تعداد: {item.quantity || 1}
@@ -1019,22 +1150,46 @@ export default function StoreOwnerOrdersPage() {
                           </div>
                         )}
 
-                        {/* Actions */}
+                        {/* Customer Note */}
+                        {shippingAddress?.note && (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-start space-x-2 space-x-reverse">
+                              <MessageSquare className="w-4 h-4 text-gray-400 mt-0.5" />
+                              <div className="text-sm">
+                                <div className="font-medium text-gray-900 mb-1">
+                                  یادداشت مشتری:
+                                </div>
+                                <div className="text-gray-600 bg-gray-50 p-2 rounded-lg">
+                                  {shippingAddress.note}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Quick Actions */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-4 pt-4 border-t border-gray-200 space-y-3 sm:space-y-0">
                           <div className="text-sm text-gray-600">
-                            شناسه مشتری:{" "}
+                            شناسه سفارش:{" "}
                             <span className="font-mono">
-                              {user?.id?.slice(-8).toUpperCase() || "—"}
+                              {order.id.slice(-8).toUpperCase()}
                             </span>
                           </div>
 
                           <div className="flex items-center space-x-3 space-x-reverse">
-                            <Link
-                              href={`/orders/store-owner/${order.id}`}
+                            <button
+                              onClick={() => handleEditClick(order)}
                               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center text-sm"
                             >
+                              <Edit className="w-4 h-4 ml-1" />
+                              ویرایش سفارش
+                            </button>
+                            <Link
+                              href={`/store-owner/dashboard/orders/${order.id}`}
+                              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center text-sm"
+                            >
                               <Eye className="w-4 h-4 ml-1" />
-                              مشاهده کامل سفارش
+                              جزئیات کامل
                             </Link>
                           </div>
                         </div>
@@ -1045,7 +1200,7 @@ export default function StoreOwnerOrdersPage() {
               </div>
 
               {/* Pagination */}
-              {totalPages > 1 && (
+              {orders.length > 0 && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                   <div className="flex flex-col md:flex-row md:items-center justify-between">
                     <div className="text-sm text-gray-700 mb-4 md:mb-0">
@@ -1056,46 +1211,20 @@ export default function StoreOwnerOrdersPage() {
 
                     <div className="flex items-center space-x-2 space-x-reverse">
                       <button
-                        onClick={() => handlePageChange(currentPage - 1)}
+                        onClick={() => setCurrentPage(currentPage - 1)}
                         disabled={currentPage === 1}
                         className="p-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                       >
                         <ChevronRight className="w-4 h-4" />
                       </button>
 
-                      {Array.from(
-                        { length: Math.min(5, totalPages) },
-                        (_, i) => {
-                          let pageNum;
-                          if (totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (currentPage <= 3) {
-                            pageNum = i + 1;
-                          } else if (currentPage >= totalPages - 2) {
-                            pageNum = totalPages - 4 + i;
-                          } else {
-                            pageNum = currentPage - 2 + i;
-                          }
-
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => handlePageChange(pageNum)}
-                              className={`w-10 h-10 flex items-center justify-center border rounded-lg text-sm ${
-                                currentPage === pageNum
-                                  ? "bg-blue-600 text-white border-blue-600"
-                                  : "border-gray-300 hover:bg-gray-50"
-                              }`}
-                            >
-                              {pageNum}
-                            </button>
-                          );
-                        }
-                      )}
+                      <span className="px-4 py-2 text-sm text-gray-700">
+                        صفحه {currentPage}
+                      </span>
 
                       <button
-                        onClick={() => handlePageChange(currentPage + 1)}
-                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={orders.length < 10}
                         className="p-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                       >
                         <ChevronLeft className="w-4 h-4" />
@@ -1125,7 +1254,7 @@ export default function StoreOwnerOrdersPage() {
                   }}
                   className="text-gray-400 hover:text-gray-600"
                 >
-                  <XCircle className="w-5 h-5" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
@@ -1175,31 +1304,362 @@ export default function StoreOwnerOrdersPage() {
         </div>
       )}
 
-      {/* Order Details Modal */}
-      {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      {/* Edit Order Modal */}
+      {showEditModal && editingOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-lg max-w-4xl w-full my-8">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold">
-                  جزئیات سفارش #{selectedOrder.id.slice(-8).toUpperCase()}
+                  ویرایش سفارش #{editingOrder.id.slice(-8).toUpperCase()}
                 </h2>
                 <button
-                  onClick={() => setSelectedOrder(null)}
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingOrder(null);
+                  }}
                   className="text-gray-500 hover:text-gray-700"
                 >
-                  <XCircle className="w-6 h-6" />
+                  <X className="w-6 h-6" />
                 </button>
               </div>
 
-              {/* Modal content would go here - similar to order details page */}
+              <div className="space-y-6">
+                {/* Status and Payment */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      وضعیت سفارش
+                    </label>
+                    <select
+                      value={editForm.status}
+                      onChange={(e) =>
+                        handleEditChange("status", e.target.value)
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="pending">در انتظار پرداخت</option>
+                      <option value="paid">پرداخت شده</option>
+                      <option value="shipped">ارسال شده</option>
+                      <option value="delivered">تحویل داده شده</option>
+                      <option value="cancelled">لغو شده</option>
+                    </select>
+                  </div>
 
-              <div className="mt-6 flex justify-end space-x-3 space-x-reverse">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      روش پرداخت
+                    </label>
+                    <select
+                      value={editForm.payment_method}
+                      onChange={(e) =>
+                        handleEditChange("payment_method", e.target.value)
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {paymentMethods.map((method) => (
+                        <option key={method.value} value={method.value}>
+                          {method.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Tracking Number */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    کد رهگیری
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.tracking_number}
+                    onChange={(e) =>
+                      handleEditChange("tracking_number", e.target.value)
+                    }
+                    placeholder="کد رهگیری پستی"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Shipping Address */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    آدرس تحویل
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        نام
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.shipping_address.firstName}
+                        onChange={(e) =>
+                          handleEditChange(
+                            "shipping_address.firstName",
+                            e.target.value
+                          )
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        نام خانوادگی
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.shipping_address.lastName}
+                        onChange={(e) =>
+                          handleEditChange(
+                            "shipping_address.lastName",
+                            e.target.value
+                          )
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        آدرس کامل
+                      </label>
+                      <textarea
+                        value={editForm.shipping_address.address}
+                        onChange={(e) =>
+                          handleEditChange(
+                            "shipping_address.address",
+                            e.target.value
+                          )
+                        }
+                        rows="3"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        شهر
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.shipping_address.city}
+                        onChange={(e) =>
+                          handleEditChange(
+                            "shipping_address.city",
+                            e.target.value
+                          )
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        کد پستی
+                      </label>
+                      <input
+                        type="text"
+                        value={editForm.shipping_address.postalCode}
+                        onChange={(e) =>
+                          handleEditChange(
+                            "shipping_address.postalCode",
+                            e.target.value
+                          )
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        شماره تماس
+                      </label>
+                      <input
+                        type="tel"
+                        value={editForm.shipping_address.phone}
+                        onChange={(e) =>
+                          handleEditChange(
+                            "shipping_address.phone",
+                            e.target.value
+                          )
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        یادداشت
+                      </label>
+                      <textarea
+                        value={editForm.shipping_address.note}
+                        onChange={(e) =>
+                          handleEditChange(
+                            "shipping_address.note",
+                            e.target.value
+                          )
+                        }
+                        rows="2"
+                        placeholder="یادداشت مشتری"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Items (Read-only) */}
+                {editingOrder.items && editingOrder.items.length > 0 && (
+                  <div className="border-t border-gray-200 pt-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                      محصولات سفارش
+                    </h3>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      {editingOrder.items.map((item, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between py-2 border-b border-gray-200 last:border-0"
+                        >
+                          <div className="flex items-center">
+                            {item.product?.images?.[0] && (
+                              <img
+                                src={getProductImageUrl(item.product)}
+                                alt={item.product?.name}
+                                className="w-10 h-10 rounded border border-gray-300 object-cover ml-3"
+                              />
+                            )}
+                            <div>
+                              <div className="font-medium">
+                                {item.title || item.product?.name || "محصول"}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                تعداد: {item.quantity} | قیمت:{" "}
+                                {formatPrice(item.price)}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="font-medium">
+                            {formatPrice(
+                              parseFloat(item.price) * item.quantity
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex justify-between pt-4 border-t border-gray-200 mt-2">
+                        <div className="font-bold">جمع کل:</div>
+                        <div className="font-bold text-lg">
+                          {formatPrice(editingOrder.total_amount)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex justify-end space-x-3 space-x-reverse mt-8 pt-6 border-t border-gray-200">
                 <button
-                  onClick={() => setSelectedOrder(null)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingOrder(null);
+                  }}
+                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  بستن
+                  انصراف
+                </button>
+                <button
+                  onClick={() => handleUpdateOrder(editingOrder.id)}
+                  disabled={updatingOrder === editingOrder.id}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                >
+                  {updatingOrder === editingOrder.id ? (
+                    <>
+                      <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                      در حال ذخیره...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 ml-2" />
+                      ذخیره تغییرات
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete/Cancel Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                </div>
+              </div>
+
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                {showDeleteConfirm.action === "cancel"
+                  ? "لغو سفارش"
+                  : "حذف سفارش"}
+              </h3>
+
+              <p className="text-sm text-gray-600 text-center mb-6">
+                {showDeleteConfirm.action === "cancel"
+                  ? `آیا مطمئن هستید که می‌خواهید سفارش #${showDeleteConfirm.id
+                      .slice(-8)
+                      .toUpperCase()} را لغو کنید؟`
+                  : `آیا مطمئن هستید که می‌خواهید سفارش #${showDeleteConfirm.id
+                      .slice(-8)
+                      .toUpperCase()} را حذف کنید؟`}
+                <br />
+                <span className="text-red-500 font-medium">
+                  {showDeleteConfirm.action === "cancel"
+                    ? "پس از لغو، سفارش قابل بازگشت نیست!"
+                    : "این عمل قابل بازگشت نیست!"}
+                </span>
+              </p>
+
+              <div className="flex space-x-3 space-x-reverse">
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  انصراف
+                </button>
+                <button
+                  onClick={() => {
+                    if (showDeleteConfirm.action === "cancel") {
+                      handleCancelOrder(showDeleteConfirm.id);
+                    } else {
+                      handleDeleteOrder(showDeleteConfirm.id);
+                    }
+                  }}
+                  disabled={updatingOrder === showDeleteConfirm.id}
+                  className={`flex-1 px-4 py-2 ${
+                    showDeleteConfirm.action === "cancel"
+                      ? "bg-yellow-600 hover:bg-yellow-700"
+                      : "bg-red-600 hover:bg-red-700"
+                  } text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center`}
+                >
+                  {updatingOrder === showDeleteConfirm.id ? (
+                    <>
+                      <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                      {showDeleteConfirm.action === "cancel"
+                        ? "در حال لغو..."
+                        : "در حال حذف..."}
+                    </>
+                  ) : (
+                    <>
+                      {showDeleteConfirm.action === "cancel" ? (
+                        <XCircle className="w-4 h-4 ml-2" />
+                      ) : (
+                        <Trash2 className="w-4 h-4 ml-2" />
+                      )}
+                      {showDeleteConfirm.action === "cancel"
+                        ? "لغو سفارش"
+                        : "حذف سفارش"}
+                    </>
+                  )}
                 </button>
               </div>
             </div>
