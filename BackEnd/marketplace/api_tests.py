@@ -382,7 +382,7 @@ class WishlistAPITestCase(APITestCase):
         """Test adding product to wishlist"""
         self.client.force_authenticate(user=self.customer)
         add_data = {'product_id': str(self.product1.id)}
-        response = self.client.post('/api/wishlists/add-product/', add_data, format='json')
+        response = self.client.post('/api/wishlists/me/add/', add_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_remove_from_wishlist_api(self):
@@ -390,16 +390,16 @@ class WishlistAPITestCase(APITestCase):
         self.client.force_authenticate(user=self.customer)
         # Add first
         add_data = {'product_id': str(self.product1.id)}
-        self.client.post('/api/wishlists/add-product/', add_data, format='json')
+        self.client.post('/api/wishlists/me/add/', add_data, format='json')
         # Then remove
         remove_data = {'product_id': str(self.product1.id)}
-        response = self.client.post('/api/wishlists/remove-product/', remove_data, format='json')
+        response = self.client.delete('/api/wishlists/me/remove/', data=remove_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_clear_wishlist_api(self):
         """Test clearing wishlist"""
         self.client.force_authenticate(user=self.customer)
-        response = self.client.post('/api/wishlists/clear/', format='json')
+        response = self.client.delete('/api/wishlists/me/clear/', format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 

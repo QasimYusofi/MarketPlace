@@ -400,8 +400,8 @@ Content-Type: application/json
 
 ### Wishlist Management
 - `POST /api/wishlists/me/add/` - Add product to wishlist
-- `DELETE /api/wishlists/me/remove/{product_id}/` - Remove product from wishlist
-- `POST /api/wishlists/me/clear/` - Clear all items from wishlist
+- `DELETE /api/wishlists/me/remove/` - Remove product from wishlist
+- `DELETE /api/wishlists/me/clear/` - Clear all items from wishlist
 - `GET /api/wishlists/me/check/{product_id}/` - Check if product is in user's wishlist
 
 ## API Usage Examples
