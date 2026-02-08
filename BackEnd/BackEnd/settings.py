@@ -190,3 +190,5 @@ SWAGGER_SETTINGS = {
     'api_key': 'Authorization',  # Custom header name
     'VALIDATOR_URL': None,
 }
+
+#  token should be like this:   Bearer <token>
