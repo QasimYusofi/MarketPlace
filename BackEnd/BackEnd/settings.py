@@ -177,3 +177,16 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
     'ALGORITHM': 'HS256',
 }
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'CustomAuth': {  # Change from 'Bearer' or 'Basic' to your custom auth
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'description': 'Token authorization using phone number'
+        }
+    },
+    'USE_SESSION_AUTH': False,  # Disable default username/password form
+    'api_key': 'Authorization',  # Custom header name
+    'VALIDATOR_URL': None,
+}
