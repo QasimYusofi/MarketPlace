@@ -215,15 +215,19 @@ export default function WishlistPage() {
       }));
 
       const token = getAuthToken();
-      const response = await fetch(
-        `${API_BASE_URL}/wishlists/me/remove/${productId}/`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const body = JSON.stringify({
+        product_id: productId,
+      });
+
+      console.log(body);
+
+      const response = await fetch(`${API_BASE_URL}/wishlists/me/remove/`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: body,
+      });
 
       if (response.ok) {
         await fetchWishlist();
@@ -262,12 +266,17 @@ export default function WishlistPage() {
 
       // Remove each selected item
       const removePromises = selectedProducts.map(async (productId) => {
+        const body = JSON.stringify({
+          product_id: productId,
+        });
+
         const token = getAuthToken();
-        return fetch(`${API_BASE_URL}/wishlists/me/remove/${productId}/`, {
+        return fetch(`${API_BASE_URL}/wishlists/me/remove/`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          body: body,
         });
       });
 
@@ -425,7 +434,7 @@ export default function WishlistPage() {
     try {
       const token = getAuthToken();
       const response = await fetch(`${API_BASE_URL}/wishlists/me/clear/`, {
-        method: "POST",
+        method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },

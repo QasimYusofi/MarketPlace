@@ -468,7 +468,7 @@ const ProductDetailPage = () => {
 
     try {
       const endpoint = isLiked
-        ? `${API_BASE_URL}/wishlists/me/remove/${product.id || product._id}/`
+        ? `${API_BASE_URL}/wishlists/me/remove/`
         : `${API_BASE_URL}/wishlists/me/add/`;
 
       const method = isLiked ? "DELETE" : "POST";
